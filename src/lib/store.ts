@@ -50,12 +50,32 @@ async function readJson<T extends z.ZodType>(
   return parseOrThrow(schema, JSON.parse(text), what);
 }
 
+const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
+const RENAME_MAX_ATTEMPTS = 10;
+
+/**
+ * Renames `from` over `to`. On Windows, renaming onto a file that another rename or
+ * reader holds open fails with EPERM/EBUSY/EACCES, so retry with a short backoff.
+ */
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.rename(from, to);
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code ?? "";
+      if (!RENAME_RETRY_CODES.has(code) || attempt >= RENAME_MAX_ATTEMPTS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 10));
+    }
+  }
+}
+
 /** Writes JSON atomically: temp file in the same folder, then rename over the target. */
 async function writeJsonAtomic(file: string, value: unknown): Promise<void> {
   const tmp = safeJoin(path.dirname(file), `.${path.basename(file)}.${randomUUID()}.tmp`);
   await fs.writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   try {
-    await fs.rename(tmp, file);
+    await renameWithRetry(tmp, file);
   } catch (err) {
     await fs.rm(tmp, { force: true });
     throw err;
