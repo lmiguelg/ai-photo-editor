@@ -44,8 +44,21 @@ npm run build
 
 - `src/app/`: routes and API route handlers.
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
+  `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
+  Attempt, QA result and Decision.
 - `src/lib/`: filesystem store and shared helpers.
-- `data/`: runtime listings, photos, results, logs. Never commit.
+  - `src/lib/paths.ts`: `getDataDir()` (the only place `DATA_DIR` is read),
+    `safeJoin()` and the per-listing/per-photo folder helpers. All file access
+    from the store goes through `safeJoin`.
+  - `src/lib/store.ts`: async listing/photo CRUD, validated with the schemas on
+    read and write, atomic JSON writes, `StoreError` with code `not_found` / `invalid`.
+- `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
+  ```
+  data/listings/<listingId>/listing.json                  listing fields, no photos
+  data/listings/<listingId>/photos/<photoId>/photo.json   one photo record
+  data/listings/<listingId>/photos/<photoId>/original.<ext>  uploaded bytes
+  ```
+  One JSON file per photo, so photos of one listing can be updated concurrently.
 
 ## Cost rules (the goal is maximum margin with a great product)
 
