@@ -45,7 +45,16 @@ npm run build
 - `src/app/`: routes and API route handlers.
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
   `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
-  Attempt, QA result and Decision.
+  Attempt, QA result and Decision, plus the router and prompt agent outputs.
+  - `config.ts`: every tunable: model ids per tier, agent tiers, token and fal prices, image sizes, `max_tokens`, limits, prefilter and QA thresholds.
+  - `prompts.ts`: system prompt per agent (router, synthesizer, refiner, qa) and user-text builders.
+  - `metrics.ts`: free local `sharp` metrics (`computeLocalMetrics`) and the `prefilter` that rejects junk before any paid call.
+  - `images.ts`: `prepareForVision`, auto-rotate + downscale + JPEG for every vision call and the editor input.
+  - `cost.ts`: `costFromUsage`, USD cost of an Anthropic call from its token usage.
+  - `providers/`: `types.ts` (`VisionProvider`, `ImageEditor`), `anthropic.ts` (SDK, cached system prompt), `fal.ts` (fal.ai over `fetch`), `mock.ts` (free fakes) and `index.ts` (`createProviders(env)`, the only real-vs-mock switch).
+  - `agents/`: one function per agent (router, synthesizer, refiner, qa) plus `call.ts`, which calls the provider and validates the JSON reply with Zod.
+  - `run-photo.ts`: `runPhoto`, the per-photo loop (prefilter, route, synthesize, edit/QA with capped text-only retries and a cost cap). It is storage-free and persists nothing: it takes the original bytes and returns attempts with edited bytes, the cost log and status for the caller to persist.
+  - `test-helpers.ts`: in-memory test images and scripted vision/editor fakes for tests.
 - `src/lib/`: filesystem store and shared helpers.
   - `src/lib/paths.ts`: `getDataDir()` (the only place `DATA_DIR` is read),
     `safeJoin()` and the per-listing/per-photo folder helpers. All file access
