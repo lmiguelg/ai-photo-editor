@@ -139,6 +139,25 @@ describe("addPhoto edge cases", () => {
     }
   });
 
+  it("handles uploads while the listing is being read, leaving no temp files", async () => {
+    // Readers hold listing.json open, which on Windows makes a rename onto it fail.
+    for (let round = 0; round < 5; round++) {
+      const listing = await createListing({ name: `Read ${round}` });
+      const results = await Promise.allSettled([
+        ...Array.from({ length: 4 }, (_, i) =>
+          addPhoto(listing.id, { roomType: "other", originalName: `p${i}.png`, data: bytes }),
+        ),
+        ...Array.from({ length: 4 }, () => getListing(listing.id)),
+        listListings(),
+      ]);
+      const errors = results.flatMap((r) => (r.status === "rejected" ? [String(r.reason)] : []));
+      expect(errors).toEqual([]);
+      expect((await getListing(listing.id))?.photos).toHaveLength(4);
+    }
+    const temps = (await listFilesRecursive(dataDir)).filter((f) => f.endsWith(".tmp"));
+    expect(temps).toEqual([]);
+  });
+
   it("rejects an unknown room type as invalid", async () => {
     const listing = await createListing({ name: "Room" });
     const err = await caught(
@@ -201,5 +220,24 @@ describe("updatePhoto edge cases", () => {
     expect(reloaded).toHaveLength(6);
     const byId = new Map(reloaded.map((p) => [p.id, p.costUsd]));
     photos.forEach((p, i) => expect(byId.get(p.id)).toBe(i + 0.5));
+  });
+
+  it("does not throw on concurrent updates to the same photo", async () => {
+    // No locking is in scope, so the last writer wins; but every call must succeed
+    // and leave a valid record with no temp files behind.
+    const listing = await createListing({ name: "Same photo" });
+    const photo = await addPhoto(listing.id, { roomType: "kitchen", originalName: "k.jpg", data: bytes });
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 6 }, (_, i) => updatePhoto(listing.id, photo.id, (cur) => ({ ...cur, costUsd: i + 1 }))),
+    );
+    const errors = results.flatMap((r) => (r.status === "rejected" ? [String(r.reason)] : []));
+    expect(errors).toEqual([]);
+
+    const stored = (await getListing(listing.id))?.photos[0];
+    expect(stored?.id).toBe(photo.id);
+    expect([1, 2, 3, 4, 5, 6]).toContain(stored?.costUsd);
+    const temps = (await listFilesRecursive(dataDir)).filter((f) => f.endsWith(".tmp"));
+    expect(temps).toEqual([]);
   });
 });
