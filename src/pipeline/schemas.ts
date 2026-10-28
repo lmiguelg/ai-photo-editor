@@ -44,6 +44,19 @@ export const QaResultSchema = z.object({
 });
 export type QaResult = z.infer<typeof QaResultSchema>;
 
+/** Router agent output. */
+export const RouteDecisionSchema = z.object({
+  route: z.enum(["skip", "enhance", "reject"]),
+  reason: z.string(),
+});
+export type RouteDecision = z.infer<typeof RouteDecisionSchema>;
+
+/** Synthesizer and refiner agent output: the edit instruction for the image editor. */
+export const PromptOutputSchema = z.object({
+  prompt: z.string().trim().min(1),
+});
+export type PromptOutput = z.infer<typeof PromptOutputSchema>;
+
 export const AttemptSchema = z.object({
   index: z.number().int().min(0),
   prompt: z.string(),
