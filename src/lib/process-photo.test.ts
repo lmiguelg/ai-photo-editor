@@ -24,7 +24,7 @@ const QA_FAIL_VETO = {
   reply: { pass: false, scores: { faithfulness: 8, realism: 8, lighting: 8, coherence: 8 }, reason: "Looks fake" },
   costUsd: 0.015,
 };
-const RUN_COST =0.002 + 0.01 + 0.04 + 0.015;
+const RUN_COST = 0.002 + 0.01 + 0.04 + 0.015;
 
 let image: Buffer;
 

@@ -108,7 +108,7 @@ export const FeedbackEntrySchema = z.object({
 });
 export type FeedbackEntry = z.infer<typeof FeedbackEntrySchema>;
 
-const ListingNameSchema =z.string().trim().min(1).max(200);
+const ListingNameSchema = z.string().trim().min(1).max(200);
 
 export const ListingSchema = z.object({
   id: IdSchema,
