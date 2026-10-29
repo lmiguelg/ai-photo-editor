@@ -105,6 +105,35 @@ export function isRunAllEligible(photo: Pick<Photo, "status" | "decision">): boo
   return photo.status === "uploaded" || photo.status === "failed";
 }
 
+type SelectablePhoto = Pick<Photo, "id" | "status" | "decision">;
+
+export interface SelectionState {
+  eligibleIds: string[];
+  /** The selection kept to currently eligible photos, in `photos` order. */
+  selectedIds: string[];
+  /** Every eligible photo is selected (and there is at least one). */
+  all: boolean;
+  /** Some but not all eligible photos are selected. */
+  some: boolean;
+}
+
+/** The selection as the UI shows it: only photos Run all could pick can stay selected. */
+export function selectionState(photos: readonly SelectablePhoto[], selectedIds: ReadonlySet<string>): SelectionState {
+  const eligibleIds = photos.filter(isRunAllEligible).map((photo) => photo.id);
+  const selected = eligibleIds.filter((id) => selectedIds.has(id));
+  const all = eligibleIds.length > 0 && selected.length === eligibleIds.length;
+  return { eligibleIds, selectedIds: selected, all, some: selected.length > 0 && !all };
+}
+
+/** What "Run selected" runs: selected, eligible photos that are not already running. */
+export function runSelectedQueue<T extends SelectablePhoto>(
+  photos: readonly T[],
+  selectedIds: ReadonlySet<string>,
+  runningIds: ReadonlySet<string>,
+): T[] {
+  return photos.filter((photo) => selectedIds.has(photo.id) && isRunAllEligible(photo) && !runningIds.has(photo.id));
+}
+
 export interface RunQueueOptions {
   concurrency: number;
   shouldStop?: () => boolean;

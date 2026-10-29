@@ -14,6 +14,8 @@ import {
   runErrorMessage,
   runOutcome,
   runQueue,
+  runSelectedQueue,
+  selectionState,
   sortForReview,
   statusChip,
   uploadFileError,
@@ -134,6 +136,65 @@ describe("isRunAllEligible", () => {
   it("never picks an approved photo", () => {
     expect(isRunAllEligible(photo("a", "failed", "approved"))).toBe(false);
     expect(isRunAllEligible(photo("a", "passed", "approved"))).toBe(false);
+  });
+});
+
+describe("selectionState", () => {
+  const photos = [
+    photo("up-1", "uploaded"),
+    photo("passed", "passed"),
+    photo("up-2", "uploaded"),
+    photo("failed", "failed"),
+    photo("approved-failed", "failed", "approved"),
+    photo("busy", "processing"),
+  ];
+  const ids = (...list: string[]) => new Set(list);
+
+  it("lists eligible photos in order and keeps only eligible ids selected", () => {
+    const state = selectionState(photos, ids("passed", "up-2", "busy", "approved-failed", "gone"));
+    expect(state.eligibleIds).toEqual(["up-1", "up-2", "failed"]);
+    expect(state.selectedIds).toEqual(["up-2"]);
+    expect(state).toMatchObject({ all: false, some: true });
+  });
+
+  it("is all when every eligible photo is selected, and neither with none", () => {
+    expect(selectionState(photos, ids("failed", "up-1", "up-2", "passed"))).toMatchObject({
+      selectedIds: ["up-1", "up-2", "failed"],
+      all: true,
+      some: false,
+    });
+    expect(selectionState(photos, ids())).toMatchObject({ selectedIds: [], all: false, some: false });
+  });
+
+  it("drops a photo from the selection once it stops being eligible", () => {
+    const after = photos.map((p) => (p.id === "up-1" ? photo("up-1", "passed") : p));
+    expect(selectionState(after, ids("up-1", "up-2")).selectedIds).toEqual(["up-2"]);
+  });
+
+  it("is never all without eligible photos", () => {
+    expect(selectionState([photo("p", "passed")], ids("p"))).toMatchObject({
+      eligibleIds: [],
+      selectedIds: [],
+      all: false,
+      some: false,
+    });
+  });
+});
+
+describe("runSelectedQueue", () => {
+  it("returns only selected, eligible photos that are not running, in the given order", () => {
+    const photos = [
+      photo("a", "uploaded"),
+      photo("b", "uploaded"),
+      photo("c", "failed"),
+      photo("d", "passed"),
+      photo("e", "failed", "approved"),
+      photo("f", "uploaded"),
+    ];
+    const queue = runSelectedQueue(photos, new Set(["f", "c", "a", "d", "e"]), new Set(["a"]));
+    expect(queue.map((p) => p.id)).toEqual(["c", "f"]);
+    expect(queue[0]).toBe(photos[2]);
+    expect(runSelectedQueue(photos, new Set(), new Set())).toEqual([]);
   });
 });
 
