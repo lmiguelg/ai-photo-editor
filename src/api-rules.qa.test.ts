@@ -41,13 +41,12 @@ describe("API repo rules", () => {
     expect(callers).toEqual(["src/app/api/listings/[listingId]/photos/[photoId]/run/route.ts"]);
   });
 
-  it("the ten API route files exist and await their params", async () => {
+  it("the nine API route files exist and await their params", async () => {
     const api = path.join(SRC, "app", "api", "listings");
     const routes = (await sourceFiles(api)).filter((f) => path.basename(f) === "route.ts").map(rel).sort();
     expect(routes).toEqual(
       [
         "src/app/api/listings/route.ts",
-        "src/app/api/listings/import/route.ts",
         "src/app/api/listings/[listingId]/route.ts",
         "src/app/api/listings/[listingId]/photos/route.ts",
         "src/app/api/listings/[listingId]/photos/[photoId]/run/route.ts",
@@ -63,6 +62,13 @@ describe("API repo rules", () => {
       expect(text, file).toMatch(/params: Promise</);
       expect(text, file).not.toContain("Route" + "Context");
     }
+  });
+
+  it("the upload route takes its format check from image-check and defines none itself", async () => {
+    const route = await readFile(path.join(SRC, "app/api/listings/[listingId]/photos/route.ts"), "utf8");
+    expect(route).toMatch(/from "@\/lib\/image-check"/u);
+    expect(route).not.toMatch(new RegExp("(const|function)\\s+(EXTENSION_" + "FORMATS|detect" + "Format)\\b", "u"));
+    expect(route).not.toMatch(/from "sharp"/u);
   });
 
   it("the image route builds the path only from the record via getPhotoFilePath", async () => {

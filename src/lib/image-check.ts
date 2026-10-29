@@ -1,6 +1,6 @@
 import sharp from "sharp";
 
-// Shared image checks for uploads and link imports: the bytes decide the format.
+// Shared image checks for uploads: the bytes decide the format.
 
 export type ImageFormat = "jpg" | "png" | "webp";
 

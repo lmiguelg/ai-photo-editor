@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Listing, Photo } from "@/pipeline/schemas";
 import { ExportPanel } from "./export-panel";
 import { HomeView } from "./home-view";
-import { ImportListingForm } from "./import-listing-form";
 import { PhotoCard, type PhotoCardProps } from "./photo-card";
 import { ProviderModeBanner } from "./provider-mode-banner";
 import { TestRouter } from "./test-router";
@@ -85,7 +84,7 @@ describe("ProviderModeBanner", () => {
     expect(html).toContain("cost $0");
     expect(html).toContain("ANTHROPIC_API_KEY");
     expect(html).toContain("FAL_KEY");
-    expect(html).toContain("not set. Link imports use sample photos.</p>");
+    expect(html).toContain("not set.</p>");
   });
 
   it("says vision is real and editing is mocked with only the Anthropic key", () => {
@@ -225,25 +224,6 @@ describe("PhotoCard select checkbox", () => {
   });
 });
 
-describe("ImportListingForm", () => {
-  it("has the heading, a labelled required url input, optional name inputs and the submit button", () => {
-    const html = renderToStaticMarkup(
-      <TestRouter>
-        <ImportListingForm />
-      </TestRouter>,
-    );
-    expect(html).toContain(">Import from listing link</h2>");
-    expect(html).toMatch(/<label for="import-url"[^>]*>Airbnb or Booking.com link<\/label>/);
-    expect(html).toMatch(/<input id="import-url" type="url" required="" maxLength="2048"[^>]*name="url"/);
-    expect(html).toMatch(/<label for="import-name"[^>]*>Listing name<\/label>/);
-    expect(html).toMatch(/<input id="import-name" maxLength="200"[^>]*name="name"/);
-    expect(html).toMatch(/<label for="import-client-name"[^>]*>Client name<\/label>/);
-    expect(html).not.toMatch(/<input id="import-(client-)?name"[^>]*required/);
-    expect(html).toMatch(/<button type="submit"[^>]*>Import photos<\/button>/);
-    expect(html).toContain('aria-live="polite"');
-  });
-});
-
 describe("UploadPanel", () => {
   it("has a labelled room type select defaulting to Other and a labelled file input", () => {
     const html = renderToStaticMarkup(<UploadPanel listingId="listing-1" onUploaded={() => {}} />);
@@ -274,7 +254,6 @@ describe("HomeView", () => {
     expect(html).toMatch(/<button type="submit"[^>]*>Create listing<\/button>/);
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain("No listings yet");
-    expect(html.indexOf(">New listing</h2>")).toBeLessThan(html.indexOf(">Import from listing link</h2>"));
   });
 
   it("lists listings with links, escaped names, photo counts, to-review chips and AI cost", () => {

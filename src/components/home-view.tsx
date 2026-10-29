@@ -3,7 +3,6 @@ import { costSummary, formatUsd, isToReview } from "@/lib/review";
 import { config } from "@/pipeline/config";
 import type { Listing } from "@/pipeline/schemas";
 import { CreateListingForm } from "./create-listing-form";
-import { ImportListingForm } from "./import-listing-form";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2";
 
@@ -20,8 +19,6 @@ export function HomeView({ listings }: { listings: Listing[] }) {
       </section>
 
       <CreateListingForm />
-
-      <ImportListingForm />
 
       <section aria-labelledby="listings-heading" className="space-y-3">
         <h2 id="listings-heading" className="text-lg font-semibold">
