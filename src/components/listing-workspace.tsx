@@ -8,6 +8,7 @@ import {
   isReviewable,
   isRunAllEligible,
   isToReview,
+  nextToReview,
   reviewKeyAction,
   RUN_ALL_CONCURRENCY,
   runErrorMessage,
@@ -148,8 +149,7 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
         return;
       }
       const updated = (await res.json()) as Photo;
-      const nextPhotos = listing.photos.map((photo) => (photo.id === updated.id ? updated : photo));
-      pendingFocus.current = sortForReview(nextPhotos).find(isToReview)?.id ?? updated.id;
+      pendingFocus.current = nextToReview(photos, photoId) ?? updated.id;
       replacePhoto(updated);
       setNotes((current) => ({ ...current, [photoId]: "" }));
       setAnnouncement(`${updated.originalName}: ${verdict === "approved" ? "Approved" : "Rejected by you"}`);

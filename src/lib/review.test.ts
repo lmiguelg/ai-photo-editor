@@ -6,6 +6,7 @@ import {
   formatUsd,
   isRunAllEligible,
   isToReview,
+  nextToReview,
   reviewKeyAction,
   RUN_ALL_CONCURRENCY,
   runErrorMessage,
@@ -77,6 +78,27 @@ describe("sortForReview", () => {
     expect(isToReview(photo("a", "needs_review"))).toBe(true);
     expect(isToReview(photo("a", "passed", "approved"))).toBe(false);
     expect(isToReview(photo("a", "failed"))).toBe(false);
+  });
+});
+
+describe("nextToReview", () => {
+  const ordered = [
+    photo("a", "needs_review"),
+    photo("b", "passed"),
+    photo("c", "passed"),
+    photo("d", "uploaded"),
+    photo("e", "passed", "approved"),
+  ];
+
+  it("picks the next photo still to review after the decided one", () => {
+    expect(nextToReview(ordered, "b")).toBe("c");
+    expect(nextToReview(ordered, "a")).toBe("b");
+  });
+
+  it("wraps to the first photo to review and skips the decided one", () => {
+    expect(nextToReview(ordered, "c")).toBe("a");
+    expect(nextToReview([photo("a", "passed")], "a")).toBeNull();
+    expect(nextToReview(ordered, "missing")).toBe("a");
   });
 });
 

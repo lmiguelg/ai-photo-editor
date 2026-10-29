@@ -86,6 +86,19 @@ export function sortForReview<T extends Pick<Photo, "status" | "decision" | "cre
   return [...photos].sort((a, b) => reviewRank(a) - reviewRank(b) || a.createdAt.localeCompare(b.createdAt));
 }
 
+/**
+ * Where focus goes after deciding `decidedId`: the next photo still to review after it
+ * in `ordered`, wrapping to the first one; null when none is left.
+ */
+export function nextToReview(
+  ordered: readonly Pick<Photo, "id" | "status" | "decision">[],
+  decidedId: string,
+): string | null {
+  const index = ordered.findIndex((photo) => photo.id === decidedId);
+  const rotated = [...ordered.slice(index + 1), ...ordered.slice(0, Math.max(index, 0))];
+  return rotated.find((photo) => photo.id !== decidedId && isToReview(photo))?.id ?? null;
+}
+
 /** Run all only picks photos without a result yet, so it never re-pays for one. */
 export function isRunAllEligible(photo: Pick<Photo, "status" | "decision">): boolean {
   if (photo.decision?.verdict === "approved") return false;
