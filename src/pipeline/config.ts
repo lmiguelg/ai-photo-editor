@@ -69,7 +69,7 @@ export const config: PipelineConfig = {
   limits: { maxRetries: 2, maxCostPerPhotoUsd: 0.2 },
   prefilter: {
     minLongEdgePx: 1024,
-    minShortEdgePx: 600,
+    minShortEdgePx: 500,
     sharpnessWidthPx: 512,
     // Calibrated on synthetic images: sharp patterns score 5-18, blurred and flat
     // images stay under 0.9. ASSUMPTION: verify on real listing photos.
