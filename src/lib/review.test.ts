@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Photo, PhotoStatus } from "@/pipeline/schemas";
+import type { Photo, PhotoStatus, RoomType } from "@/pipeline/schemas";
 import {
+  canExport,
   costSummary,
+  exportSelection,
   formatCostSummary,
   formatUsd,
   isRunAllEligible,
@@ -294,5 +296,88 @@ describe("reviewKeyAction", () => {
     expect(reviewKeyAction({ key: "a", ctrlKey: true, target: card })).toBeNull();
     expect(reviewKeyAction({ key: "r", metaKey: true, target: card })).toBeNull();
     expect(reviewKeyAction({ key: "j", altKey: true, target: card })).toBeNull();
+  });
+});
+
+describe("exportSelection", () => {
+  function exportPhoto(
+    id: string,
+    status: PhotoStatus,
+    verdict: Verdict | null = null,
+    { roomType = "bedroom" as RoomType, createdAt = at(0), editedFile = "attempt-0.jpg" as string | null } = {},
+  ) {
+    return {
+      ...photo(id, status, verdict, createdAt),
+      roomType,
+      bestAttemptIndex: status === "passed" || status === "needs_review" ? 0 : null,
+      attempts: [{ index: 0, prompt: "p", editedFile, qa: null, costUsd: 0, createdAt }],
+    } satisfies Pick<Photo, "id" | "status" | "decision" | "createdAt" | "roomType" | "attempts" | "bestAttemptIndex">;
+  }
+
+  it("puts every status/decision combination in exactly one bucket", () => {
+    const selection = exportSelection([
+      exportPhoto("approved-passed", "passed", "approved"),
+      exportPhoto("approved-needs-review", "needs_review", "approved"),
+      exportPhoto("approved-no-file", "passed", "approved", { editedFile: null }),
+      exportPhoto("rejected-by-you", "needs_review", "rejected"),
+      exportPhoto("awaiting", "passed"),
+      exportPhoto("awaiting-2", "needs_review"),
+      exportPhoto("skipped", "skipped"),
+      exportPhoto("pipeline-rejected", "rejected"),
+      exportPhoto("failed", "failed"),
+      exportPhoto("uploaded", "uploaded"),
+      exportPhoto("processing", "processing"),
+    ]);
+    expect(selection.included.map((item) => [item.photo.id, item.source])).toEqual([
+      ["approved-needs-review", "edited"],
+      ["approved-passed", "edited"],
+      ["skipped", "original"],
+    ]);
+    expect(selection.excluded).toEqual({
+      awaiting_review: 2,
+      rejected_by_you: 1,
+      rejected_by_pipeline: 1,
+      failed: 1,
+      not_run: 1,
+      processing: 1,
+      no_result: 1,
+    });
+    expect(selection.enhancedCount).toBe(2);
+    expect(selection.originalCount).toBe(1);
+    expect(canExport(selection)).toBe(true);
+  });
+
+  it("ignores a stale approval on a photo that is no longer reviewable", () => {
+    const selection = exportSelection([
+      exportPhoto("failed-approved", "failed", "approved"),
+      exportPhoto("skipped-rejected", "skipped", "rejected"),
+    ]);
+    expect(selection.included.map((item) => [item.photo.id, item.source])).toEqual([["skipped-rejected", "original"]]);
+    expect(selection.excluded.failed).toBe(1);
+    expect(canExport(selection)).toBe(false);
+  });
+
+  it("orders by room type enum order, then createdAt, then id", () => {
+    const selection = exportSelection([
+      exportPhoto("other", "skipped", null, { roomType: "other", createdAt: at(1) }),
+      exportPhoto("bed-late", "passed", "approved", { roomType: "bedroom", createdAt: at(5) }),
+      exportPhoto("bed-b", "passed", "approved", { roomType: "bedroom", createdAt: at(2) }),
+      exportPhoto("bed-a", "skipped", null, { roomType: "bedroom", createdAt: at(2) }),
+      exportPhoto("living", "needs_review", "approved", { roomType: "living_room", createdAt: at(9) }),
+      exportPhoto("kitchen", "passed", "approved", { roomType: "kitchen", createdAt: at(0) }),
+    ]);
+    expect(selection.included.map((item) => item.photo.id)).toEqual([
+      "living",
+      "bed-a",
+      "bed-b",
+      "bed-late",
+      "kitchen",
+      "other",
+    ]);
+  });
+
+  it("does not allow export with only skipped originals or nothing at all", () => {
+    expect(canExport(exportSelection([exportPhoto("s", "skipped")]))).toBe(false);
+    expect(canExport(exportSelection([]))).toBe(false);
   });
 });

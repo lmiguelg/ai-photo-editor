@@ -1,4 +1,4 @@
-import type { Attempt, Photo, PhotoStatus, RoomType } from "@/pipeline/schemas";
+import { RoomTypeSchema, type Attempt, type Photo, type PhotoStatus, type RoomType } from "@/pipeline/schemas";
 
 // Client-safe pure helpers for the management UI. No `node:*`, sharp, store or
 // providers here: client components import this module.
@@ -175,6 +175,83 @@ export function formatCostSummary({ totalUsd, priceUsd, marginUsd, marginPct }: 
 export function bestAttempt(photo: Pick<Photo, "attempts" | "bestAttemptIndex">): Attempt | null {
   if (photo.bestAttemptIndex === null) return null;
   return photo.attempts.find((attempt) => attempt.index === photo.bestAttemptIndex) ?? null;
+}
+
+export type ExportSource = "edited" | "original";
+
+export const EXCLUDED_REASONS = [
+  "awaiting_review",
+  "rejected_by_you",
+  "rejected_by_pipeline",
+  "failed",
+  "not_run",
+  "processing",
+  "no_result",
+] as const;
+export type ExcludedReason = (typeof EXCLUDED_REASONS)[number];
+
+export interface ExportItem<T> {
+  photo: T;
+  source: ExportSource;
+}
+
+export interface ExportSelection<T> {
+  /** Ordered by room type (enum order), then `createdAt`, then `id`. */
+  included: ExportItem<T>[];
+  excluded: Record<ExcludedReason, number>;
+  enhancedCount: number;
+  originalCount: number;
+}
+
+type ExportPhoto = Pick<Photo, "id" | "roomType" | "status" | "decision" | "attempts" | "bestAttemptIndex" | "createdAt">;
+
+/** Where one photo goes in a client export: its image source, or why it is left out. */
+function exportBucket(photo: ExportPhoto): ExportSource | ExcludedReason {
+  switch (photo.status) {
+    case "skipped":
+      return "original";
+    case "rejected":
+      return "rejected_by_pipeline";
+    case "failed":
+      return "failed";
+    case "uploaded":
+      return "not_run";
+    case "processing":
+      return "processing";
+    case "passed":
+    case "needs_review":
+      if (photo.decision === null) return "awaiting_review";
+      if (photo.decision.verdict === "rejected") return "rejected_by_you";
+      return bestAttempt(photo)?.editedFile ? "edited" : "no_result";
+  }
+}
+
+/**
+ * What a client export holds: approved enhanced photos and skipped photos as their
+ * originals. Every other photo is counted under the reason it is left out.
+ */
+export function exportSelection<T extends ExportPhoto>(photos: readonly T[]): ExportSelection<T> {
+  const excluded = Object.fromEntries(EXCLUDED_REASONS.map((reason) => [reason, 0])) as Record<ExcludedReason, number>;
+  const included: ExportItem<T>[] = [];
+  for (const photo of photos) {
+    const bucket = exportBucket(photo);
+    if (bucket === "edited" || bucket === "original") included.push({ photo, source: bucket });
+    else excluded[bucket] += 1;
+  }
+  const roomOrder = RoomTypeSchema.options;
+  included.sort(
+    (a, b) =>
+      roomOrder.indexOf(a.photo.roomType) - roomOrder.indexOf(b.photo.roomType) ||
+      a.photo.createdAt.localeCompare(b.photo.createdAt) ||
+      a.photo.id.localeCompare(b.photo.id),
+  );
+  const enhancedCount = included.filter((item) => item.source === "edited").length;
+  return { included, excluded, enhancedCount, originalCount: included.length - enhancedCount };
+}
+
+/** Export needs at least one approved enhanced photo; skipped originals alone are not enough. */
+export function canExport(selection: Pick<ExportSelection<unknown>, "enhancedCount">): boolean {
+  return selection.enhancedCount > 0;
 }
 
 export function photoImageUrl(photo: Pick<Photo, "id" | "listingId" | "updatedAt">, kind: "original" | "edited"): string {
