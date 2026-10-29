@@ -43,6 +43,14 @@ npm run build
 ## Layout
 
 - `src/app/`: routes and API route handlers.
+  - `src/app/api/listings/` (JSON in and out, errors are `{"error": "<fixed message>"}`; invalid ids give 404):
+    - `GET /api/listings`: all listings with their photos.
+    - `POST /api/listings`: create a listing from `{ name, clientName? }` (201).
+    - `GET /api/listings/[listingId]`: one listing with its photos.
+    - `POST /api/listings/[listingId]/photos`: multipart upload of one `file` (jpg/jpeg/png/webp, checked with `sharp`) plus `roomType` (201). Capped at 25 MB per file (`MAX_UPLOAD_BYTES`); needs `Content-Length` (411 without, 413 over the cap).
+    - `POST /api/listings/[listingId]/photos/[photoId]/run`: run the pipeline on one photo synchronously and persist the result. Returns 409 while the photo is already `processing`; re-runs are allowed from any other status.
+    - `POST /api/listings/[listingId]/photos/[photoId]/decision`: `{ verdict: "approved" | "rejected", note? }` on a `passed`/`needs_review` photo (409 otherwise).
+    - `GET /api/listings/[listingId]/photos/[photoId]/image?kind=original|edited&attempt=<n>`: stored image bytes; the file name comes only from the photo record.
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
   `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
   Attempt, QA result and Decision, plus the router and prompt agent outputs.
@@ -60,12 +68,17 @@ npm run build
     `safeJoin()` and the per-listing/per-photo folder helpers. All file access
     from the store goes through `safeJoin`.
   - `src/lib/store.ts`: async listing/photo CRUD, validated with the schemas on
-    read and write, atomic JSON writes, `StoreError` with code `not_found` / `invalid`.
+    read and write, atomic JSON writes, `StoreError` with code `not_found` / `invalid` / `conflict`,
+    and `claimPhotoForRun`, which sets `processing` under a per-photo lock file.
+  - `src/lib/http.ts`: shared route helpers: the one error-to-response mapper, size caps, JSON body reading and `safeHeaderFileName`.
+  - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost.
+  - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query).
 - `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
   ```
   data/listings/<listingId>/listing.json                  listing fields, no photos
   data/listings/<listingId>/photos/<photoId>/photo.json   one photo record
   data/listings/<listingId>/photos/<photoId>/original.<ext>  uploaded bytes
+  data/listings/<listingId>/photos/<photoId>/attempt-<index>.<ext>  edited image per attempt (overwritten on re-run)
   ```
   One JSON file per photo, so photos of one listing can be updated concurrently.
 
