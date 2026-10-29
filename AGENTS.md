@@ -43,6 +43,9 @@ npm run build
 ## Layout
 
 - `src/app/`: routes and API route handlers.
+  - `layout.tsx`: header plus `ProviderModeBanner` above `<main>`.
+  - `/` (`page.tsx`): create-listing form and the listings list (photo count, "N to review", AI cost). Rendered per request (`dynamic = "force-dynamic"`).
+  - `/listings/[listingId]` (`listings/[listingId]/page.tsx`): loads the listing with `getListing` (404 via `notFound()`) and renders the client `ListingWorkspace`. Rendered per request.
   - `src/app/api/listings/` (JSON in and out, errors are `{"error": "<fixed message>"}`; invalid ids give 404):
     - `GET /api/listings`: all listings with their photos.
     - `POST /api/listings`: create a listing from `{ name, clientName? }` (201).
@@ -55,12 +58,12 @@ npm run build
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
   `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
   Attempt, QA result and Decision, plus the router and prompt agent outputs.
-  - `config.ts`: every tunable: model ids per tier, agent tiers, token and fal prices, image sizes, `max_tokens`, limits, prefilter and QA thresholds.
+  - `config.ts`: every tunable: model ids per tier, agent tiers, token and fal prices, image sizes, `max_tokens`, limits, prefilter and QA thresholds, and `pricing.listingPriceUsd` (the $45 price the UI shows margin against).
   - `prompts.ts`: system prompt per agent (router, synthesizer, refiner, qa) and user-text builders.
   - `metrics.ts`: free local `sharp` metrics (`computeLocalMetrics`) and the `prefilter` that rejects junk before any paid call.
   - `images.ts`: `prepareForVision`, auto-rotate + downscale + JPEG for every vision call and the editor input.
   - `cost.ts`: `costFromUsage`, USD cost of an Anthropic call from its token usage.
-  - `providers/`: `types.ts` (`VisionProvider`, `ImageEditor`), `anthropic.ts` (SDK, cached system prompt), `fal.ts` (fal.ai over `fetch`), `mock.ts` (free fakes) and `index.ts` (`createProviders(env)`, the only real-vs-mock switch).
+  - `providers/`: `types.ts` (`VisionProvider`, `ImageEditor`), `anthropic.ts` (SDK, cached system prompt), `fal.ts` (fal.ai over `fetch`), `mock.ts` (free fakes) and `index.ts` (`createProviders(env)`, the only real-vs-mock switch; it takes its `mode` from `providerMode(env)`, which returns only the labels `anthropic|mock` / `fal|mock` and is what the mock-mode banner reads).
   - `agents/`: one function per agent (router, synthesizer, refiner, qa) plus `call.ts`, which calls the provider and validates the JSON reply with Zod.
   - `run-photo.ts`: `runPhoto`, the per-photo loop (prefilter, route, synthesize, edit/QA with capped text-only retries and a cost cap). It is storage-free and persists nothing: it takes the original bytes and returns attempts with edited bytes, the cost log and status for the caller to persist.
   - `test-helpers.ts`: in-memory test images and scripted vision/editor fakes for tests.
@@ -72,8 +75,10 @@ npm run build
     read and write, atomic JSON writes, `StoreError` with code `not_found` / `invalid` / `conflict`,
     and `claimPhotoForRun`, which sets `processing` under a per-photo lock file.
   - `src/lib/http.ts`: shared route helpers: the one error-to-response mapper, size caps, JSON body reading and `safeHeaderFileName`.
-  - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost.
+  - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost. It keeps an in-process run registry (a set on `globalThis`, shared by all route bundles): `isPhotoRunning(listingId, photoId)` is true from a successful claim until the run ends. The `/reset` route refuses while it is true; after a restart it is empty.
+  - `src/lib/review.ts`: client-safe pure helpers for the UI (no `node:*`, sharp, store or providers): status chips and room-type labels, `sortForReview`, `isRunAllEligible` (only `uploaded`/`failed`, never approved), `runQueue` with `RUN_ALL_CONCURRENCY = 2`, run-outcome handling (409 is quiet), `costSummary`/`formatUsd`, client upload checks and `reviewKeyAction` (j/k/a/r).
   - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query).
+- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, run all with Stop, keyboard review, reset), `photo-card.tsx`, `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
 - `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
   ```
   data/listings/<listingId>/listing.json                  listing fields, no photos
