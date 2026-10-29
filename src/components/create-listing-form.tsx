@@ -32,6 +32,8 @@ export function CreateListingForm() {
         return;
       }
       const listing = (await res.json()) as { id: string };
+      // Refresh first so going Back restores a home list that includes the new listing.
+      router.refresh();
       router.push(`/listings/${listing.id}`);
     } catch {
       setError("Could not create the listing: request failed");
