@@ -4,6 +4,7 @@ import {
   bestAttempt,
   formatUsd,
   isReviewable,
+  isRunAllEligible,
   photoImageUrl,
   ROOM_TYPE_LABELS,
   statusChip,
@@ -23,8 +24,11 @@ export interface PhotoCardProps {
   note: string;
   /** A message from the last action on this card, e.g. "Run failed". */
   message: string | null;
+  /** Picked for "Run selected"; only shown checked while the photo can be selected. */
+  selected: boolean;
   cardRef?: (element: HTMLElement | null) => void;
   onNoteChange: (note: string) => void;
+  onSelect: (selected: boolean) => void;
   onRun: () => void;
   onDecide: (verdict: "approved" | "rejected") => void;
   onReset: () => void;
@@ -35,8 +39,10 @@ export function PhotoCard({
   running,
   note,
   message,
+  selected,
   cardRef,
   onNoteChange,
+  onSelect,
   onRun,
   onDecide,
   onReset,
@@ -48,6 +54,8 @@ export function PhotoCard({
   const runLabel = photo.status === "uploaded" ? "Run" : "Re-run";
   const noteId = `note-${photo.id}`;
   const runReasonId = `run-reason-${photo.id}`;
+  const selectId = `select-${photo.id}`;
+  const selectable = isRunAllEligible(photo) && !running;
 
   return (
     <article
@@ -71,6 +79,26 @@ export function PhotoCard({
           className="block h-auto w-full rounded-md bg-neutral-200"
         />
       )}
+
+      <div className="flex items-center gap-2">
+        <input
+          id={selectId}
+          type="checkbox"
+          checked={selectable && selected}
+          disabled={!selectable}
+          onChange={(event) => onSelect(event.target.checked)}
+          onKeyDown={(event) => {
+            // Space toggles a checkbox natively; Enter does here too.
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            onSelect(!selected);
+          }}
+          className={`size-4 rounded disabled:cursor-not-allowed ${FOCUS}`}
+        />
+        <label htmlFor={selectId} className="break-all text-sm text-neutral-700">
+          {`Select ${name}`}
+        </label>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="mr-auto break-all font-medium">{name}</h3>

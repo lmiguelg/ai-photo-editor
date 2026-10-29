@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Listing, Photo } from "@/pipeline/schemas";
 import { ExportPanel } from "./export-panel";
 import { HomeView } from "./home-view";
+import { ImportListingForm } from "./import-listing-form";
 import { PhotoCard, type PhotoCardProps } from "./photo-card";
 import { ProviderModeBanner } from "./provider-mode-banner";
 import { TestRouter } from "./test-router";
@@ -58,7 +59,9 @@ function card(photo: Photo, props: Partial<PhotoCardProps> = {}): string {
       running={false}
       note=""
       message={null}
+      selected={false}
       onNoteChange={() => {}}
+      onSelect={() => {}}
       onRun={() => {}}
       onDecide={() => {}}
       onReset={() => {}}
@@ -82,6 +85,7 @@ describe("ProviderModeBanner", () => {
     expect(html).toContain("cost $0");
     expect(html).toContain("ANTHROPIC_API_KEY");
     expect(html).toContain("FAL_KEY");
+    expect(html).toContain("not set. Link imports use sample photos.</p>");
   });
 
   it("says vision is real and editing is mocked with only the Anthropic key", () => {
@@ -194,6 +198,52 @@ describe("PhotoCard", () => {
   });
 });
 
+describe("PhotoCard select checkbox", () => {
+  const checkbox = (html: string) => html.match(/<input id="select-photo-1"[^>]*>/)?.[0] ?? "";
+
+  it("is labelled by the file name and enabled for an uploaded photo", () => {
+    const html = card(makePhoto());
+    expect(html).toMatch(/<label for="select-photo-1"[^>]*>Select kitchen.jpg<\/label>/);
+    expect(checkbox(html)).toContain('type="checkbox"');
+    expect(checkbox(html)).not.toContain('disabled=""');
+    expect(checkbox(html)).not.toContain('checked=""');
+    expect(checkbox(card(makePhoto(), { selected: true }))).toContain('checked=""');
+  });
+
+  it("is disabled and unchecked for a passed photo, a running photo and an approved failure", () => {
+    for (const html of [
+      card(passedPhoto(), { selected: true }),
+      card(makePhoto(), { selected: true, running: true }),
+      card(makePhoto({ status: "failed", decision: { verdict: "approved", note: "", decidedAt: NOW } }), {
+        selected: true,
+      }),
+    ]) {
+      expect(checkbox(html)).toContain('disabled=""');
+      expect(checkbox(html)).not.toContain('checked=""');
+    }
+    expect(checkbox(card(makePhoto({ status: "failed" }), { selected: true }))).toContain('checked=""');
+  });
+});
+
+describe("ImportListingForm", () => {
+  it("has the heading, a labelled required url input, optional name inputs and the submit button", () => {
+    const html = renderToStaticMarkup(
+      <TestRouter>
+        <ImportListingForm />
+      </TestRouter>,
+    );
+    expect(html).toContain(">Import from listing link</h2>");
+    expect(html).toMatch(/<label for="import-url"[^>]*>Airbnb or Booking.com link<\/label>/);
+    expect(html).toMatch(/<input id="import-url" type="url" required="" maxLength="2048"[^>]*name="url"/);
+    expect(html).toMatch(/<label for="import-name"[^>]*>Listing name<\/label>/);
+    expect(html).toMatch(/<input id="import-name" maxLength="200"[^>]*name="name"/);
+    expect(html).toMatch(/<label for="import-client-name"[^>]*>Client name<\/label>/);
+    expect(html).not.toMatch(/<input id="import-(client-)?name"[^>]*required/);
+    expect(html).toMatch(/<button type="submit"[^>]*>Import photos<\/button>/);
+    expect(html).toContain('aria-live="polite"');
+  });
+});
+
 describe("UploadPanel", () => {
   it("has a labelled room type select defaulting to Other and a labelled file input", () => {
     const html = renderToStaticMarkup(<UploadPanel listingId="listing-1" onUploaded={() => {}} />);
@@ -224,6 +274,7 @@ describe("HomeView", () => {
     expect(html).toMatch(/<button type="submit"[^>]*>Create listing<\/button>/);
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain("No listings yet");
+    expect(html.indexOf(">New listing</h2>")).toBeLessThan(html.indexOf(">Import from listing link</h2>"));
   });
 
   it("lists listings with links, escaped names, photo counts, to-review chips and AI cost", () => {

@@ -13,7 +13,7 @@ export function ProviderModeBanner() {
   let text: string;
   if (visionMock && editorMock) {
     text =
-      "Mock mode: no API calls are made, results are fake and cost $0. ANTHROPIC_API_KEY and FAL_KEY are not set.";
+      "Mock mode: no API calls are made, results are fake and cost $0. ANTHROPIC_API_KEY and FAL_KEY are not set. Link imports use sample photos.";
   } else if (editorMock) {
     text =
       "Partial mock mode: vision uses Anthropic (real, costs money); image editing is mocked (FAL_KEY not set).";

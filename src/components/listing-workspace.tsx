@@ -14,6 +14,8 @@ import {
   runErrorMessage,
   runOutcome,
   runQueue,
+  runSelectedQueue,
+  selectionState,
   sortForReview,
 } from "@/lib/review";
 import { config } from "@/pipeline/config";
@@ -29,7 +31,9 @@ const RESET_CONFIRM =
   "Reset this stuck photo? Only use this after a crash or restart left it in Processing. " +
   "A photo that is really running will be refused.";
 
-interface RunAllProgress {
+interface BatchProgress {
+  /** "Run all" or "Run selected", for the finished/stopped announcement. */
+  label: string;
   total: number;
   started: number;
   done: number;
@@ -41,7 +45,8 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
   const [running, setRunning] = useState<ReadonlySet<string>>(new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<Record<string, string | null>>({});
-  const [runAll, setRunAll] = useState<RunAllProgress | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [batch, setBatch] = useState<BatchProgress | null>(null);
   const [stopping, setStopping] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const stopRequested = useRef(false);
@@ -53,6 +58,7 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
     listing.photos.map((photo) => (running.has(photo.id) ? { ...photo, status: "processing" as const } : photo)),
   );
   const summary = costSummary(listing.photos, config.pricing.listingPriceUsd);
+  const selection = selectionState(photos, selected);
 
   useEffect(() => {
     if (pendingFocus.current === null) return;
@@ -88,7 +94,18 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
     });
   }
 
+  function setPhotoSelected(photoId: string, on: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(photoId);
+      else next.delete(photoId);
+      return next;
+    });
+  }
+
   async function runPhoto(photoId: string) {
+    // A running photo is no longer eligible, so it leaves the selection.
+    setPhotoSelected(photoId, false);
     setRunning((current) => new Set(current).add(photoId));
     setMessage(photoId, null);
     try {
@@ -108,27 +125,42 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
     }
   }
 
-  async function startRunAll() {
-    const queue = photos.filter((photo) => isRunAllEligible(photo) && !running.has(photo.id));
+  /** The one batch runner behind "Run all" and "Run selected". */
+  async function runBatch(label: string, queue: readonly Photo[]) {
     if (queue.length === 0) {
       setAnnouncement("No photos to run");
       return;
     }
     stopRequested.current = false;
     setStopping(false);
-    setRunAll({ total: queue.length, started: 0, done: 0 });
+    setBatch({ label, total: queue.length, started: 0, done: 0 });
     await runQueue(
       queue,
       async (photo) => {
-        setRunAll((current) => current && { ...current, started: current.started + 1 });
+        setBatch((current) => current && { ...current, started: current.started + 1 });
         await runPhoto(photo.id);
-        setRunAll((current) => current && { ...current, done: current.done + 1 });
+        setBatch((current) => current && { ...current, done: current.done + 1 });
       },
       { concurrency: RUN_ALL_CONCURRENCY, shouldStop: () => stopRequested.current },
     );
-    setAnnouncement(stopRequested.current ? "Run all stopped" : "Run all finished");
-    setRunAll(null);
+    setAnnouncement(`${label} ${stopRequested.current ? "stopped" : "finished"}`);
+    setBatch(null);
     setStopping(false);
+  }
+
+  function startRunAll() {
+    return runBatch(
+      "Run all",
+      photos.filter((photo) => isRunAllEligible(photo) && !running.has(photo.id)),
+    );
+  }
+
+  function startRunSelected() {
+    return runBatch("Run selected", runSelectedQueue(photos, selected, running));
+  }
+
+  function selectAll(on: boolean) {
+    setSelected(new Set(on ? selection.eligibleIds : []));
   }
 
   function stopRunAll() {
@@ -203,12 +235,13 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
 
   const toReview = listing.photos.filter(isToReview).length;
   let progress = announcement;
-  if (runAll) {
-    const inFlight = runAll.started - runAll.done;
+  if (batch) {
+    const inFlight = batch.started - batch.done;
     progress = stopping
       ? `Stopping… ${inFlight} in progress`
-      : `Running ${runAll.started} of ${runAll.total}, ${inFlight} in progress`;
+      : `Running ${batch.started} of ${batch.total}, ${inFlight} in progress`;
   }
+  const selectedCount = selection.selectedIds.length;
 
   return (
     <div className="space-y-6">
@@ -236,15 +269,44 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
           <h2 id="photos-heading" className="mr-auto text-lg font-semibold">
             Photos
           </h2>
+          <div className="flex items-center gap-2">
+            <input
+              id="select-all"
+              type="checkbox"
+              checked={selection.all}
+              ref={(element) => {
+                if (element) element.indeterminate = selection.some;
+              }}
+              disabled={selection.eligibleIds.length === 0}
+              onChange={(event) => selectAll(event.target.checked)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                selectAll(!selection.all);
+              }}
+              className={`size-4 rounded disabled:cursor-not-allowed ${FOCUS}`}
+            />
+            <label htmlFor="select-all" className="text-sm font-medium">
+              Select all
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => void startRunSelected()}
+            disabled={selectedCount === 0 || batch !== null}
+            className={`${BUTTON} border-blue-700 bg-white text-blue-800 hover:bg-blue-50`}
+          >
+            {`Run selected (${selectedCount})`}
+          </button>
           <button
             type="button"
             onClick={() => void startRunAll()}
-            disabled={runAll !== null}
+            disabled={batch !== null}
             className={`${BUTTON} border-blue-700 bg-blue-700 text-white hover:bg-blue-800`}
           >
             Run all
           </button>
-          {runAll && (
+          {batch && (
             <button
               type="button"
               onClick={stopRunAll}
@@ -273,11 +335,13 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
                 running={running.has(photo.id)}
                 note={notes[photo.id] ?? ""}
                 message={messages[photo.id] ?? null}
+                selected={selected.has(photo.id)}
                 cardRef={(element) => {
                   if (element) cardRefs.current.set(photo.id, element);
                   else cardRefs.current.delete(photo.id);
                 }}
                 onNoteChange={(note) => setNotes((current) => ({ ...current, [photo.id]: note }))}
+                onSelect={(on) => setPhotoSelected(photo.id, on)}
                 onRun={() => void runPhoto(photo.id)}
                 onDecide={(verdict) => void decide(photo.id, verdict)}
                 onReset={() => void reset(photo.id)}
