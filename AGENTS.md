@@ -80,7 +80,7 @@ npm run build
   Attempt, QA result, Decision and `FeedbackEntry` (one feedback log line), plus the
   router and prompt agent outputs.
   - `config.ts`: every tunable: model ids per tier, agent tiers, token and fal prices, image sizes, `max_tokens`, limits, prefilter and QA thresholds, `feedback` (diagnoser `minClusterSize` / `maxExamplesPerCluster`), and `pricing.listingPriceUsd` (the $45 price the UI shows margin against).
-  - `prompts.ts`: system prompt per agent (router, synthesizer, refiner, qa) and user-text builders.
+  - `prompts.ts`: system prompt per agent (router, synthesizer, refiner, qa) and user-text builders. The edit prompts aim for natural colour pop (vibrance/contrast) under the faithfulness rule (real colours and hue kept), and the QA gate penalises over-saturation and the HDR look.
   - `metrics.ts`: free local `sharp` metrics (`computeLocalMetrics`) and the `prefilter` that rejects junk before any paid call.
   - `images.ts`: `prepareForVision`, auto-rotate + downscale + JPEG for every vision call and the editor input.
   - `cost.ts`: `costFromUsage`, USD cost of an Anthropic call from its token usage.

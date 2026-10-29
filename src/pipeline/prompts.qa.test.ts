@@ -36,6 +36,71 @@ describe("system prompts", () => {
     expect(prompt).toMatch(/only if the room stays truthful/);
   });
 
+  it.each([
+    ["synthesizer", SYNTHESIZER_SYSTEM],
+    ["refiner", REFINER_SYSTEM],
+    ["qa", QA_SYSTEM],
+  ])("%s allows natural colour enhancement but keeps the real colours", (_agent, prompt) => {
+    expect(prompt).toContain("vibrance");
+    expect(prompt).toContain("contrast");
+    expect(prompt).toContain("real colours");
+  });
+
+  it.each([
+    ["synthesizer", SYNTHESIZER_SYSTEM],
+    ["qa", QA_SYSTEM],
+  ])("%s warns against over-saturation", (_agent, prompt) => {
+    expect(prompt).toMatch(/over-saturat/i);
+  });
+
+  it("router enhances dull or flat colour", () => {
+    expect(ROUTER_SYSTEM).toMatch(/"enhance":[^\n]*dull, flat or washed-out colour/);
+  });
+
+  it.each([
+    ["synthesizer", SYNTHESIZER_SYSTEM],
+    ["refiner", REFINER_SYSTEM],
+    ["qa", QA_SYSTEM],
+  ])("%s faithfulness rule forbids a hue change and the over-processed look", (_agent, prompt) => {
+    expect(prompt).toMatch(/never change hue or turn into a different colour/);
+    for (const surface of ["walls", "floors", "furniture", "fabrics", "sky", "greenery"]) {
+      expect(prompt).toContain(surface);
+    }
+    expect(prompt).toMatch(/must never look over-saturated, HDR or artificial/);
+  });
+
+  it("router only skips photos that already have natural, lively colour", () => {
+    expect(ROUTER_SYSTEM).toMatch(/"skip":[^\n]*natural, lively colour/);
+    expect(ROUTER_SYSTEM).toContain('Output shape: {"route": "skip" | "enhance" | "reject", "reason": string}');
+  });
+
+  it("synthesizer asks for natural colour pop and still keeps everything in place", () => {
+    expect(SYNTHESIZER_SYSTEM).toMatch(/vibrance and contrast[^\n]*colours pop naturally/);
+    expect(SYNTHESIZER_SYSTEM).toMatch(/real, natural photograph with no over-saturation/);
+    expect(SYNTHESIZER_SYSTEM).toMatch(/keep every object, wall, window and view exactly as they are/);
+    expect(SYNTHESIZER_SYSTEM).toMatch(/1-4 sentences/);
+    expect(SYNTHESIZER_SYSTEM).toContain('Output shape: {"prompt": string}');
+  });
+
+  it("refiner tones colour down after an over-saturated or unrealistic failure", () => {
+    expect(REFINER_SYSTEM).toMatch(/realism was low or the edit looked over-saturated or artificial, tone the colour boost down/);
+    expect(REFINER_SYSTEM).toMatch(/colours stayed dull and realism was fine[^\n]*stronger but still natural/);
+    expect(REFINER_SYSTEM).toMatch(/If the edit misrepresented the property, make the instruction more conservative/);
+    expect(REFINER_SYSTEM).toContain('Output shape: {"prompt": string}');
+  });
+
+  it("qa realism penalises over-saturation and HDR, lighting judges natural improved colour, faithfulness counts colour changes", () => {
+    const line = (key: string) => QA_SYSTEM.split("\n").find((l) => l.startsWith(`- ${key}:`)) ?? "";
+    expect(line("realism")).toMatch(/over-saturation/);
+    expect(line("realism")).toMatch(/neon or cartoonish colour/);
+    expect(line("realism")).toMatch(/HDR or over-processed look/);
+    expect(line("lighting")).toMatch(/colour are natural and improved over the original/);
+    expect(line("lighting")).toMatch(/vivid yet natural/);
+    expect(line("faithfulness")).toMatch(/changed its real colour/);
+    const criteria = QA_SYSTEM.split("\n").filter((l) => /^- [a-z]+:/.test(l)).map((l) => l.slice(2, l.indexOf(":")));
+    expect(criteria).toEqual([...config.qa.rubric]);
+  });
+
   it("qa scores exactly the four rubric items on 0-10 and fails misrepresentation", () => {
     for (const key of config.qa.rubric) expect(QA_SYSTEM).toContain(`"${key}": number`);
     expect(QA_SYSTEM).toMatch(/0 to 10/);
