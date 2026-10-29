@@ -38,6 +38,8 @@ export interface PipelineConfig {
     maxBrightness: number;
   };
   qa: { minScore: number; rubric: readonly ["faithfulness", "realism", "lighting", "coherence"] };
+  /** What the client pays; the UI shows AI cost and margin against it. */
+  pricing: { listingPriceUsd: number };
 }
 
 const HAIKU = "claude-haiku-5-5";
@@ -74,4 +76,5 @@ export const config: PipelineConfig = {
     maxBrightness: 245,
   },
   qa: { minScore: 7, rubric: ["faithfulness", "realism", "lighting", "coherence"] },
+  pricing: { listingPriceUsd: 45 },
 };
