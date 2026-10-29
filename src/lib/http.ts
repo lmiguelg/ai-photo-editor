@@ -1,8 +1,9 @@
 import path from "node:path";
 import { z } from "zod";
 import { StoreError, type StoreErrorCode } from "./errors";
+import { MAX_UPLOAD_BYTES } from "./review";
 
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+export { MAX_UPLOAD_BYTES };
 /** Allowance for multipart boundaries and the other fields on top of the file. */
 export const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 export const MAX_JSON_BYTES = 64 * 1024;
