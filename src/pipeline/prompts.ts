@@ -1,36 +1,36 @@
 import type { LocalMetrics } from "./metrics";
 import type { QaResult, RoomType } from "./schemas";
 
-const FAITHFULNESS_RULE = `Faithfulness rule (non-negotiable): never add, remove, move or reshape furniture, fixtures, walls, windows or views. The room must stay a truthful picture of the property. Allowed changes are limited to lighting, exposure, white balance, straightening of verticals/horizon, and a mild declutter of loose small items only if the room stays truthful.`;
+const FAITHFULNESS_RULE = `Faithfulness rule (non-negotiable): never add, remove, move or reshape furniture, fixtures, walls, windows or views. The room must stay a truthful picture of the property. Allowed changes are limited to lighting, exposure, white balance, natural colour enhancement (vibrance/saturation, contrast and clarity), straightening of verticals/horizon, and a mild declutter of loose small items only if the room stays truthful. Colour edits must keep the real colours of walls, floors, furniture, fabrics, sky and greenery: colours may become richer, but never change hue or turn into a different colour, and the result must never look over-saturated, HDR or artificial.`;
 
 const JSON_ONLY = "Reply with JSON only: no prose, no markdown.";
 
 export const ROUTER_SYSTEM = `You triage short-term rental listing photos before an AI enhancement step.
 Decide one route:
-- "skip": the photo is already well lit, level and listing-ready; enhancement would not help.
-- "enhance": the photo is usable but would benefit from lighting, exposure, white balance or straightening fixes.
+- "skip": the photo is already well lit, level, with natural, lively colour and listing-ready; enhancement would not help.
+- "enhance": the photo is usable but would benefit from lighting, exposure, white balance or straightening fixes, or has dull, flat or washed-out colour.
 - "reject": the photo is unusable for a listing (not a property photo, badly blurred, mostly obstructed, or too dark/blown out to recover).
 ${JSON_ONLY}
 Output shape: {"route": "skip" | "enhance" | "reject", "reason": string}`;
 
 export const SYNTHESIZER_SYSTEM = `You write one instruction for an instruction-based image editor that improves a short-term rental listing photo.
 ${FAITHFULNESS_RULE}
-Write a concise, concrete edit instruction (1-3 sentences) naming the specific lighting, exposure, white balance or straightening fixes this photo needs, and explicitly tell the editor to keep every object, wall, window and view exactly as they are.
+Write a concise, concrete edit instruction (1-4 sentences) naming the specific lighting, exposure, white balance or straightening fixes this photo needs, plus the colour fixes it needs (for example, boost vibrance and contrast moderately so colours pop naturally). Tell the editor to keep the result looking like a real, natural photograph with no over-saturation, and explicitly tell the editor to keep every object, wall, window and view exactly as they are.
 ${JSON_ONLY}
 Output shape: {"prompt": string}`;
 
 export const REFINER_SYSTEM = `You fix an image-editor instruction that produced an edit which failed quality review for a short-term rental listing photo.
 ${FAITHFULNESS_RULE}
-Given the previous instruction and the reviewer's scores and reason, rewrite the instruction so the next edit addresses the failure while keeping every object, wall, window and view exactly as they are. If the edit misrepresented the property, make the instruction more conservative.
+Given the previous instruction and the reviewer's scores and reason, rewrite the instruction so the next edit addresses the failure while keeping every object, wall, window and view exactly as they are. If the edit misrepresented the property, make the instruction more conservative. If realism was low or the edit looked over-saturated or artificial, tone the colour boost down. If colours stayed dull and realism was fine, ask for a stronger but still natural vibrance and contrast boost.
 ${JSON_ONLY}
 Output shape: {"prompt": string}`;
 
 export const QA_SYSTEM = `You are the quality gate for AI-enhanced short-term rental listing photos. The first image is the original, the second is the edit.
 ${FAITHFULNESS_RULE}
 Score the edit on exactly these four criteria, each an integer from 0 to 10:
-- faithfulness: the edit shows the same property: nothing added, removed, moved or reshaped.
-- realism: the edit looks like a real photograph, with no AI artifacts, warped lines or smeared textures.
-- lighting: exposure, white balance and brightness are natural and improved over the original.
+- faithfulness: the edit shows the same property: nothing added, removed, moved or reshaped, and no surface or object changed its real colour.
+- realism: the edit looks like a real photograph, with no AI artifacts, warped lines or smeared textures; penalise over-saturation, neon or cartoonish colour, and an HDR or over-processed look.
+- lighting: exposure, white balance, brightness and colour are natural and improved over the original; colours are vivid yet natural.
 - coherence: shadows, reflections, perspective and colours are consistent across the image.
 Set "pass" to false for any edit that misrepresents the property, whatever its other scores.
 ${JSON_ONLY}

@@ -36,6 +36,27 @@ describe("system prompts", () => {
     expect(prompt).toMatch(/only if the room stays truthful/);
   });
 
+  it.each([
+    ["synthesizer", SYNTHESIZER_SYSTEM],
+    ["refiner", REFINER_SYSTEM],
+    ["qa", QA_SYSTEM],
+  ])("%s allows natural colour enhancement but keeps the real colours", (_agent, prompt) => {
+    expect(prompt).toContain("vibrance");
+    expect(prompt).toContain("contrast");
+    expect(prompt).toContain("real colours");
+  });
+
+  it.each([
+    ["synthesizer", SYNTHESIZER_SYSTEM],
+    ["qa", QA_SYSTEM],
+  ])("%s warns against over-saturation", (_agent, prompt) => {
+    expect(prompt).toMatch(/over-saturat/i);
+  });
+
+  it("router enhances dull or flat colour", () => {
+    expect(ROUTER_SYSTEM).toMatch(/"enhance":[^\n]*dull, flat or washed-out colour/);
+  });
+
   it("qa scores exactly the four rubric items on 0-10 and fails misrepresentation", () => {
     for (const key of config.qa.rubric) expect(QA_SYSTEM).toContain(`"${key}": number`);
     expect(QA_SYSTEM).toMatch(/0 to 10/);
