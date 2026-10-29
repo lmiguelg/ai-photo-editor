@@ -41,12 +41,13 @@ describe("API repo rules", () => {
     expect(callers).toEqual(["src/app/api/listings/[listingId]/photos/[photoId]/run/route.ts"]);
   });
 
-  it("the nine API route files exist and await their params", async () => {
+  it("the ten API route files exist and await their params", async () => {
     const api = path.join(SRC, "app", "api", "listings");
     const routes = (await sourceFiles(api)).filter((f) => path.basename(f) === "route.ts").map(rel).sort();
     expect(routes).toEqual(
       [
         "src/app/api/listings/route.ts",
+        "src/app/api/listings/import/route.ts",
         "src/app/api/listings/[listingId]/route.ts",
         "src/app/api/listings/[listingId]/photos/route.ts",
         "src/app/api/listings/[listingId]/photos/[photoId]/run/route.ts",

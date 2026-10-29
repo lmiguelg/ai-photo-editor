@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { DecisionSchema, IdSchema, RoomTypeSchema } from "@/pipeline/schemas";
+import { DecisionSchema, IdSchema, NewListingInputSchema, RoomTypeSchema } from "@/pipeline/schemas";
+import { isAllowedUrl, isPageHost, pageSite, type ImportSite } from "./listing-import/sites";
 
 // Request-only schemas for the API routes. Stored records use `@/pipeline/schemas`.
 
@@ -33,3 +34,28 @@ export const ImageQuerySchema = z.object({
     .transform(Number)
     .optional(),
 });
+
+/** The issue message on `url` when a link is off the allowlist; the import route maps it to 400. */
+export const UNSUPPORTED_LINK = "Unsupported listing link";
+
+const ImportUrlSchema = z
+  .string()
+  .trim()
+  .max(2048, UNSUPPORTED_LINK)
+  .transform((value, ctx): { site: ImportSite; url: URL } => {
+    const url = URL.canParse(value) ? new URL(value) : null;
+    const site = url && isAllowedUrl(url, isPageHost) ? pageSite(url.hostname) : null;
+    if (!url || !site) {
+      ctx.addIssue({ code: "custom", message: UNSUPPORTED_LINK });
+      return z.NEVER;
+    }
+    url.hash = "";
+    return { site, url };
+  });
+
+export const ListingImportInputSchema = z.object({
+  url: ImportUrlSchema,
+  name: NewListingInputSchema.shape.name.optional(),
+  clientName: NewListingInputSchema.shape.clientName,
+});
+export type ListingImportInput = z.infer<typeof ListingImportInputSchema>;
