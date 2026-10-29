@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import sharp from "sharp";
 import type { Providers } from "@/pipeline/providers/types";
 import { runPhoto, type AttemptRun } from "@/pipeline/run-photo";
-import type { Attempt, Photo } from "@/pipeline/schemas";
+import type { Attempt, FeedbackEntry, Photo } from "@/pipeline/schemas";
+import { appendFeedback } from "./feedback";
 import { claimPhotoForRun, getPhotoFilePath, savePhotoFile, updatePhoto } from "./store";
 
 export const MAX_STORED_ERROR_LENGTH = 500;
@@ -38,6 +39,30 @@ async function saveAttempt(listingId: string, photoId: string, run: AttemptRun):
   return { ...run.attempt, editedFile };
 }
 
+/** Appends one `qa_fail` feedback entry per failed QA attempt. Best-effort: never throws. */
+async function logQaFailures(photo: Photo): Promise<void> {
+  const at = new Date().toISOString();
+  const entries: FeedbackEntry[] = photo.attempts
+    .filter((attempt) => attempt.qa !== null && attempt.qa.pass === false)
+    .map((attempt) => ({
+      kind: "qa_fail",
+      at,
+      listingId: photo.listingId,
+      photoId: photo.id,
+      roomType: photo.roomType,
+      photoStatus: photo.status,
+      attemptIndex: attempt.index,
+      prompt: attempt.prompt,
+      qa: attempt.qa,
+      note: "",
+    }));
+  try {
+    await appendFeedback(entries);
+  } catch (err) {
+    console.error("Failed to append QA failures to the feedback log", err);
+  }
+}
+
 /**
  * Claims the photo (409 if already processing), runs the pipeline on its original and
  * persists the edited files, then the record. Any failure after the claim leaves the
@@ -60,7 +85,7 @@ export async function processPhoto(
     const attempts: Attempt[] = [];
     for (const run of result.attempts) attempts.push(await saveAttempt(listingId, photoId, run));
 
-    return await updatePhoto(listingId, photoId, (photo) => ({
+    const saved = await updatePhoto(listingId, photoId, (photo) => ({
       ...photo,
       status: result.status,
       bestAttemptIndex: result.bestAttemptIndex,
@@ -69,6 +94,8 @@ export async function processPhoto(
       error: result.error === null ? null : result.error.slice(0, MAX_STORED_ERROR_LENGTH),
       decision: null,
     }));
+    await logQaFailures(saved);
+    return saved;
   } catch (err) {
     // Keep the money already spent on the record even when persisting the run failed.
     await updatePhoto(listingId, photoId, (photo) => ({

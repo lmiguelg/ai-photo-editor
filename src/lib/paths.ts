@@ -30,6 +30,11 @@ function assertId(id: string): string {
   return id;
 }
 
+/** Append-only log of QA failures and human rejections. */
+export function feedbackLogPath(): string {
+  return safeJoin(getDataDir(), "feedback.jsonl");
+}
+
 export function listingsDir(): string {
   return safeJoin(getDataDir(), "listings");
 }

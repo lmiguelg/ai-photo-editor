@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { FeedbackEntrySchema } from "@/pipeline/schemas";
 import { detailedImage, FakeEditor, ScriptedVision } from "@/pipeline/test-helpers";
 import { setupApiTestEnv } from "./api-test-helpers";
 import { StoreError } from "./errors";
@@ -15,7 +16,15 @@ const QA_PASS = {
   reply: { pass: true, scores: { faithfulness: 9, realism: 9, lighting: 9, coherence: 9 }, reason: "Good" },
   costUsd: 0.015,
 };
-const RUN_COST = 0.002 + 0.01 + 0.04 + 0.015;
+const QA_FAIL = {
+  reply: { pass: false, scores: { faithfulness: 5, realism: 9, lighting: 9, coherence: 9 }, reason: "Fridge removed" },
+  costUsd: 0.015,
+};
+const QA_FAIL_VETO = {
+  reply: { pass: false, scores: { faithfulness: 8, realism: 8, lighting: 8, coherence: 8 }, reason: "Looks fake" },
+  costUsd: 0.015,
+};
+const RUN_COST =0.002 + 0.01 + 0.04 + 0.015;
 
 let image: Buffer;
 
@@ -136,6 +145,61 @@ describe("processPhoto", () => {
     expect(photo.status).toBe("failed");
     expect(failingSeen).toEqual([true]);
     expect(isPhotoRunning(listingId, photoId)).toBe(false);
+  });
+
+  it("logs one qa_fail entry per failed attempt after the record is written", async () => {
+    const { listingId, photoId } = await uploaded();
+    const vision = new ScriptedVision()
+      .on("router", ENHANCE)
+      .on("synthesizer", PROMPT)
+      .on("refiner", { reply: { prompt: "Keep the fridge" } }, { reply: { prompt: "Keep the fridge, brighten less" } })
+      .on("qa", QA_FAIL, QA_FAIL_VETO, QA_PASS);
+
+    const photo = await processPhoto(listingId, photoId, { vision, editor: new FakeEditor(0.04) });
+    expect(photo.status).toBe("passed");
+    const lines = (await fs.readFile(path.join(getDataDir(), "feedback.jsonl"), "utf8")).trim().split("\n");
+    expect(lines).toHaveLength(2);
+    const entries = lines.map((line) => FeedbackEntrySchema.parse(JSON.parse(line)));
+    expect(entries.map((entry) => entry.attemptIndex)).toEqual([0, 1]);
+    expect(entries[0]).toMatchObject({
+      kind: "qa_fail",
+      listingId,
+      photoId,
+      roomType: "bedroom",
+      photoStatus: "passed",
+      prompt: "Brighten evenly, keep everything",
+      qa: photo.attempts[0].qa,
+      note: "",
+    });
+    expect(entries[1].prompt).toBe("Keep the fridge");
+    expect(entries[1].qa?.reason).toBe("Looks fake");
+  });
+
+  it("logs nothing for a first-attempt pass or a run that never reached QA", async () => {
+    const { listingId, photoId } = await uploaded();
+    await processPhoto(listingId, photoId, { vision: passingVision(), editor: new FakeEditor() });
+    const skipping = new ScriptedVision().on("router", { reply: { route: "skip", reason: "Already good" } });
+    await processPhoto(listingId, photoId, { vision: skipping, editor: new FakeEditor() });
+    await expect(fs.stat(path.join(getDataDir(), "feedback.jsonl"))).rejects.toThrow();
+  });
+
+  it("keeps the run result when the feedback log cannot be written", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { listingId, photoId } = await uploaded();
+    // A directory at the log path makes the append fail.
+    await fs.mkdir(path.join(getDataDir(), "feedback.jsonl"));
+    const vision = new ScriptedVision()
+      .on("router", ENHANCE)
+      .on("synthesizer", PROMPT)
+      .on("refiner", { reply: { prompt: "Keep the fridge" } })
+      .on("qa", QA_FAIL, QA_PASS);
+
+    const photo = await processPhoto(listingId, photoId, { vision, editor: new FakeEditor(0.04) });
+    expect(photo.status).toBe("passed");
+    expect(photo.error).toBeNull();
+    expect(await getPhoto(listingId, photoId)).toEqual(photo);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it("is not running after a run that throws after the claim", async () => {

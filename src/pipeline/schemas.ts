@@ -91,7 +91,24 @@ export const PhotoSchema = z.object({
 });
 export type Photo = z.infer<typeof PhotoSchema>;
 
-const ListingNameSchema = z.string().trim().min(1).max(200);
+/** One line of `data/feedback.jsonl`: a failed QA attempt or a human rejection. */
+export const FeedbackEntrySchema = z.object({
+  kind: z.enum(["qa_fail", "human_reject"]),
+  at: DateTimeSchema,
+  listingId: IdSchema,
+  photoId: IdSchema,
+  roomType: RoomTypeSchema,
+  /** Status after the run (`qa_fail`) or at decision time (`human_reject`). */
+  photoStatus: PhotoStatusSchema,
+  attemptIndex: z.number().int().min(0).nullable(),
+  prompt: z.string().nullable(),
+  qa: QaResultSchema.nullable(),
+  /** Reviewer note for `human_reject`; empty for `qa_fail`. */
+  note: z.string(),
+});
+export type FeedbackEntry = z.infer<typeof FeedbackEntrySchema>;
+
+const ListingNameSchema =z.string().trim().min(1).max(200);
 
 export const ListingSchema = z.object({
   id: IdSchema,
