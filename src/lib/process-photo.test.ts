@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { detailedImage, FakeEditor, ScriptedVision } from "@/pipeline/test-helpers";
 import { setupApiTestEnv } from "./api-test-helpers";
 import { StoreError } from "./errors";
-import { processPhoto } from "./process-photo";
+import { isPhotoRunning, processPhoto } from "./process-photo";
 import { addPhoto, createListing, getPhoto, updatePhoto } from "./store";
 
 const getDataDir = setupApiTestEnv("process-photo");
@@ -107,5 +107,41 @@ describe("processPhoto", () => {
     expect(err).toBeInstanceOf(StoreError);
     expect((err as StoreError).code).toBe("conflict");
     expect(vision.requests).toHaveLength(0);
+  });
+
+  it("marks the photo running only while the run is in flight", async () => {
+    const { listingId, photoId } = await uploaded();
+    const seen: boolean[] = [];
+    const vision = passingVision();
+    const complete = vision.complete.bind(vision);
+    vision.complete = async (request) => {
+      seen.push(isPhotoRunning(listingId, photoId));
+      return complete(request);
+    };
+
+    expect(isPhotoRunning(listingId, photoId)).toBe(false);
+    await processPhoto(listingId, photoId, { vision, editor: new FakeEditor() });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every(Boolean)).toBe(true);
+    expect(isPhotoRunning(listingId, photoId)).toBe(false);
+
+    const failing = new ScriptedVision().on("router", { error: new Error("boom") });
+    const failingSeen: boolean[] = [];
+    const failingComplete = failing.complete.bind(failing);
+    failing.complete = async (request) => {
+      failingSeen.push(isPhotoRunning(listingId, photoId));
+      return failingComplete(request);
+    };
+    const photo = await processPhoto(listingId, photoId, { vision: failing, editor: new FakeEditor() });
+    expect(photo.status).toBe("failed");
+    expect(failingSeen).toEqual([true]);
+    expect(isPhotoRunning(listingId, photoId)).toBe(false);
+  });
+
+  it("is not running after a run that throws after the claim", async () => {
+    const { listingId, photoId } = await uploaded();
+    await fs.rm(path.join(getDataDir(), "listings", listingId, "photos", photoId, "original.jpg"));
+    await caught(processPhoto(listingId, photoId, { vision: passingVision(), editor: new FakeEditor() }));
+    expect(isPhotoRunning(listingId, photoId)).toBe(false);
   });
 });

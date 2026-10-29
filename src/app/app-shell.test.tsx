@@ -1,14 +1,17 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { HomeView } from "@/components/home-view";
+import { TestRouter } from "@/components/test-router";
 import RootLayout, { metadata } from "./layout";
-import Home from "./page";
 
-// Server-renders the root layout with the home page as its child.
+// Server-renders the root layout with the home page's view (no listings) as its child.
 function renderShell(): string {
   return renderToStaticMarkup(
-    <RootLayout>
-      <Home />
-    </RootLayout>,
+    <TestRouter>
+      <RootLayout>
+        <HomeView listings={[]} />
+      </RootLayout>
+    </TestRouter>,
   );
 }
 
@@ -24,10 +27,19 @@ describe("app shell", () => {
     expect(html).toMatch(/<main class="[^"]*mx-auto[^"]*">[\s\S]*<h1[^>]*>AI Photo Editor<\/h1>[\s\S]*<\/main>/);
   });
 
-  it("home page has the heading with Tailwind classes and a description, no forms", () => {
-    const html = renderToStaticMarkup(<Home />);
+  it("home page has the heading with Tailwind classes, a description and the create form", () => {
+    const html = renderToStaticMarkup(
+      <TestRouter>
+        <HomeView listings={[]} />
+      </TestRouter>,
+    );
     expect(html).toMatch(/<h1 class="[^"]*\btext-3xl\b[^"]*\bfont-bold\b[^"]*">AI Photo Editor<\/h1>/);
     expect(html).toMatch(/<p[^>]*>[^<]*listing photos[^<]*<\/p>/i);
-    expect(html).not.toMatch(/<form|<input|<button/);
+    expect(html).toMatch(/<form[\s\S]*<input id="listing-name"[\s\S]*<button type="submit"/);
+  });
+
+  it("the home page reads the store per request", async () => {
+    const page = await import("./page");
+    expect(page.dynamic).toBe("force-dynamic");
   });
 });

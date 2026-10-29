@@ -5,9 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { IdSchema, type Attempt } from "@/pipeline/schemas";
 import {
   addPhoto,
+  claimPhotoForRun,
   createListing,
   getListing,
+  getPhoto,
   listListings,
+  resetStuckPhoto,
   StoreError,
   updatePhoto,
 } from "./store";
@@ -198,5 +201,70 @@ describe("updatePhoto", () => {
     expect(byId.get(a.id)?.status).toBe("passed");
     expect(byId.get(a.id)?.attempts).toHaveLength(1);
     expect(byId.get(b.id)?.status).toBe("skipped");
+  });
+});
+
+describe("resetStuckPhoto", () => {
+  async function stuck() {
+    const listing = await createListing({ name: "Beach House" });
+    const photo = await addPhoto(listing.id, { roomType: "kitchen", originalName: "a.jpg", data: bytes });
+    const decision = { verdict: "approved" as const, note: "ok", decidedAt: new Date().toISOString() };
+    const before = await updatePhoto(listing.id, photo.id, (p) => ({
+      ...p,
+      status: "processing",
+      attempts: [attempt(0)],
+      bestAttemptIndex: 0,
+      costUsd: 0.12,
+      decision,
+    }));
+    return { listingId: listing.id, photoId: photo.id, before };
+  }
+
+  const lockFile = (listingId: string, photoId: string) =>
+    path.join(dataDir, "listings", listingId, "photos", photoId, ".run.lock");
+
+  it("sets a processing photo failed with Run interrupted and keeps cost, attempts and decision", async () => {
+    const { listingId, photoId, before } = await stuck();
+    const photo = await resetStuckPhoto(listingId, photoId);
+    expect(photo.status).toBe("failed");
+    expect(photo.error).toBe("Run interrupted");
+    expect(photo.costUsd).toBe(0.12);
+    expect(photo.attempts).toEqual(before.attempts);
+    expect(photo.bestAttemptIndex).toBe(0);
+    expect(photo.decision).toEqual(before.decision);
+    expect(await getPhoto(listingId, photoId)).toEqual(photo);
+  });
+
+  it("removes a stale run lock so a later claim succeeds", async () => {
+    const { listingId, photoId } = await stuck();
+    await fs.writeFile(lockFile(listingId, photoId), "");
+    await expectStoreError(claimPhotoForRun(listingId, photoId), "conflict");
+
+    await resetStuckPhoto(listingId, photoId);
+    await expect(fs.stat(lockFile(listingId, photoId))).rejects.toThrow();
+    expect((await claimPhotoForRun(listingId, photoId)).status).toBe("processing");
+  });
+
+  it("removes a stale lock on a photo that is not processing and leaves the record alone", async () => {
+    const listing = await createListing({ name: "Beach House" });
+    const photo = await addPhoto(listing.id, { roomType: "kitchen", originalName: "a.jpg", data: bytes });
+    await fs.writeFile(lockFile(listing.id, photo.id), "");
+
+    expect(await resetStuckPhoto(listing.id, photo.id)).toEqual(photo);
+    await expect(fs.stat(lockFile(listing.id, photo.id))).rejects.toThrow();
+  });
+
+  it("gives conflict for a photo that is not processing and has no lock", async () => {
+    const listing = await createListing({ name: "Beach House" });
+    const photo = await addPhoto(listing.id, { roomType: "kitchen", originalName: "a.jpg", data: bytes });
+    await expectStoreError(resetStuckPhoto(listing.id, photo.id), "conflict");
+    expect(await getPhoto(listing.id, photo.id)).toEqual(photo);
+  });
+
+  it("gives not_found for unknown or invalid ids", async () => {
+    const listing = await createListing({ name: "Beach House" });
+    await expectStoreError(resetStuckPhoto(listing.id, "00000000-0000-4000-8000-000000000000"), "not_found");
+    await expectStoreError(resetStuckPhoto(listing.id, "../.."), "not_found");
+    await expectStoreError(resetStuckPhoto("../..", "abc"), "not_found");
   });
 });
