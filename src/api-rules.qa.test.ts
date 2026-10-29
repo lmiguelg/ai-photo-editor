@@ -41,7 +41,7 @@ describe("API repo rules", () => {
     expect(callers).toEqual(["src/app/api/listings/[listingId]/photos/[photoId]/run/route.ts"]);
   });
 
-  it("the seven API route files exist and await their params", async () => {
+  it("the nine API route files exist and await their params", async () => {
     const api = path.join(SRC, "app", "api", "listings");
     const routes = (await sourceFiles(api)).filter((f) => path.basename(f) === "route.ts").map(rel).sort();
     expect(routes).toEqual(
@@ -53,6 +53,8 @@ describe("API repo rules", () => {
         "src/app/api/listings/[listingId]/photos/[photoId]/decision/route.ts",
         "src/app/api/listings/[listingId]/photos/[photoId]/image/route.ts",
         "src/app/api/listings/[listingId]/photos/[photoId]/reset/route.ts",
+        "src/app/api/listings/[listingId]/export/route.ts",
+        "src/app/api/listings/[listingId]/export/summary/route.ts",
       ].sort(),
     );
     for (const file of routes.filter((f) => f.includes("[listingId]"))) {
@@ -86,6 +88,10 @@ describe("API repo rules", () => {
       "/decision`",
       "/image?kind=",
       "/reset`",
+      "/export`",
+      "/export/summary`",
+      "src/lib/export.ts",
+      "src/lib/export-summary.ts",
       "src/lib/http.ts",
       "src/lib/process-photo.ts",
       "attempt-<index>.<ext>",
