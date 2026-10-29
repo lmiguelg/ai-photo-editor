@@ -1,11 +1,14 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { BASE_URL, ctx, jsonRequest, setupApiTestEnv } from "@/lib/api-test-helpers";
+import { readFeedback } from "@/lib/feedback";
 import { addPhoto, createListing, getPhoto, updatePhoto } from "@/lib/store";
 import { PhotoSchema, type PhotoStatus } from "@/pipeline/schemas";
 import { detailedImage } from "@/pipeline/test-helpers";
 import { POST } from "./route";
 
-setupApiTestEnv("decision-route");
+const getDataDir = setupApiTestEnv("decision-route");
 
 let image: Buffer;
 
@@ -63,6 +66,64 @@ describe("POST /api/listings/[listingId]/photos/[photoId]/decision", () => {
       expect(await res.json()).toEqual({ error: "Photo has no result to review" });
       expect((await getPhoto(ids.listingId, ids.photoId))?.decision).toBeNull();
     }
+  });
+
+  it("logs a human_reject entry for every rejection and nothing for approvals", async () => {
+    const ids = await photoWithStatus("passed");
+    const qa = { pass: true, scores: { faithfulness: 9, realism: 9, lighting: 9, coherence: 9 }, reason: "Good" };
+    await updatePhoto(ids.listingId, ids.photoId, (p) => ({
+      ...p,
+      bestAttemptIndex: 0,
+      attempts: [{ index: 0, prompt: "Brighten", editedFile: null, qa, costUsd: 0.05, createdAt: p.createdAt }],
+    }));
+
+    expect((await decide(ids, { verdict: "approved" })).status).toBe(200);
+    expect(await readFeedback()).toEqual({ entries: [], invalidLines: 0 });
+
+    expect((await decide(ids, { verdict: "rejected", note: "sofa removed" })).status).toBe(200);
+    expect((await decide(ids, { verdict: "rejected", note: "sofa removed" })).status).toBe(200);
+    const { entries, invalidLines } = await readFeedback();
+    expect(invalidLines).toBe(0);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      kind: "human_reject",
+      listingId: ids.listingId,
+      photoId: ids.photoId,
+      roomType: "bedroom",
+      photoStatus: "passed",
+      attemptIndex: 0,
+      prompt: "Brighten",
+      qa,
+      note: "sofa removed",
+    });
+  });
+
+  it("logs null attempt fields when the photo has no best attempt", async () => {
+    const ids = await photoWithStatus("needs_review");
+    expect((await decide(ids, { verdict: "rejected" })).status).toBe(200);
+    const { entries } = await readFeedback();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      photoStatus: "needs_review",
+      attemptIndex: null,
+      prompt: null,
+      qa: null,
+      note: "",
+    });
+  });
+
+  it("still records the rejection when the feedback log cannot be written", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ids = await photoWithStatus("passed");
+    await fs.mkdir(path.join(getDataDir(), "feedback.jsonl"));
+
+    const res = await decide(ids, { verdict: "rejected", note: "sofa removed" });
+    expect(res.status).toBe(200);
+    const photo = PhotoSchema.parse(await res.json());
+    expect(photo.decision?.verdict).toBe("rejected");
+    expect(await getPhoto(ids.listingId, ids.photoId)).toEqual(photo);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it("returns 404 for unknown or invalid photos", async () => {

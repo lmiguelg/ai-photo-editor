@@ -84,6 +84,8 @@ async function mixedListing() {
 }
 
 describe("GET /api/listings/[listingId]/export", () => {
+  // Six full mock pipeline runs plus the zip take about 4-5 s alone, so the 5 s default
+  // is too tight while the rest of the suite runs in parallel.
   it("returns a zip of approved enhanced photos, skipped originals and previews", async () => {
     const { listing, skipped } = await mixedListing();
     const res = await exportZip(listing.id);
@@ -141,7 +143,7 @@ describe("GET /api/listings/[listingId]/export", () => {
         expect(content.includes(needle), `${name} contains ${needle}`).toBe(false);
       }
     }
-  });
+  }, 30_000);
 
   it("returns 404 for an invalid or unknown listing id", async () => {
     for (const listingId of ["../x", "00000000-0000-0000-0000-000000000000"]) {
