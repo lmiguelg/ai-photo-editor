@@ -12,7 +12,8 @@ under $5/listing). Read both before designing features.
 
 Next.js (App Router, TypeScript strict), Tailwind CSS v4, Zod, `sharp` for local
 image work, `@anthropic-ai/sdk` for vision agents, fal.ai (plain `fetch`) for image
-editing, `fflate` for zip export. Tests: Vitest. Package manager: npm. Node 24.
+editing, `fflate` for zip export, `tsx` to run the TypeScript scripts in `scripts/`.
+Tests: Vitest. Package manager: npm. Node 24.
 
 Next.js 16: route handler and page `params` are Promises (`await params`). Check
 `node_modules/next/dist/docs` or the installed types when unsure about an API.
@@ -28,6 +29,23 @@ cp .env.example .env.local   # optional: with no keys the app runs in mock mode
 
 `npm run dev -- --port <port>` (factory jobs pass their own port; default 3000).
 Data is stored on disk under `data/` (gitignored, override with `DATA_DIR`).
+
+## Scripts
+
+Both load `.env.local` if it exists and read `DATA_DIR` like the app.
+
+- `npm run diagnose`: reads `data/feedback.jsonl`, clusters QA failures and human
+  rejections by kind, room type and failing rubric key (`src/lib/diagnose.ts`), and
+  overwrites `data/feedback-report.md` with proposed prompt/threshold changes naming
+  the file and symbol to edit. Free and local: no model calls, and it never edits
+  `src/` or any other file.
+- `npm run eval -- <folder>`: runs every `jpg|jpeg|png|webp` in the folder through
+  `runPhoto` one at a time and prints pass rate, retries and cost per image. Files
+  directly in `<folder>` count as `other`; files in `<folder>/<roomType>/` (a valid
+  room type such as `kitchen`) get that room type; other subfolders and deeper files
+  are ignored. It writes nothing to disk and nothing to the feedback log. It uses
+  `createProviders(process.env)`, so with `ANTHROPIC_API_KEY` / `FAL_KEY` set it
+  spends real money (capped only by `maxCostPerPhotoUsd` per photo).
 
 ## Validation
 
@@ -52,15 +70,16 @@ npm run build
     - `GET /api/listings/[listingId]`: one listing with its photos.
     - `POST /api/listings/[listingId]/photos`: multipart upload of one `file` (jpg/jpeg/png/webp, checked with `sharp`) plus `roomType` (201). Capped at 25 MB per file (`MAX_UPLOAD_BYTES`); needs `Content-Length` (411 without, 413 over the cap).
     - `POST /api/listings/[listingId]/photos/[photoId]/run`: run the pipeline on one photo synchronously and persist the result. Returns 409 while the photo is already `processing`; re-runs are allowed from any other status.
-    - `POST /api/listings/[listingId]/photos/[photoId]/decision`: `{ verdict: "approved" | "rejected", note? }` on a `passed`/`needs_review` photo (409 otherwise).
+    - `POST /api/listings/[listingId]/photos/[photoId]/decision`: `{ verdict: "approved" | "rejected", note? }` on a `passed`/`needs_review` photo (409 otherwise). Every `rejected` decision appends a `human_reject` feedback entry (note, status, best attempt's index/prompt/QA); best-effort, a log failure is only `console.error`ed.
     - `GET /api/listings/[listingId]/photos/[photoId]/image?kind=original|edited&attempt=<n>`: stored image bytes; the file name comes only from the photo record.
     - `POST /api/listings/[listingId]/photos/[photoId]/reset`: recovers a photo stuck in `processing` after a crash or restart (`resetStuckPhoto`): it becomes `failed` with "Run interrupted" and a stale `.run.lock` is removed. 409 `Photo is running` while this process is running it (run registry in `process-photo.ts`); 409 `Photo is not stuck` when it is neither `processing` nor locked.
     - `GET /api/listings/[listingId]/export`: the client zip (`buildExportZip` in `src/lib/export.ts`), `attachment; filename="<slug>-photos.zip"`, `no-store`, `nosniff`. 404 `Not found` for an invalid or unknown id, 409 `Nothing approved to export` without an approved enhanced photo, 413 `Export too large` past `MAX_EXPORT_BYTES`, 500 when a source file is missing.
     - `GET /api/listings/[listingId]/export/summary`: `{ html, text }` email summary (`buildExportSummary`), `no-store`, `nosniff`; same 404/409 rules as the zip.
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
   `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
-  Attempt, QA result and Decision, plus the router and prompt agent outputs.
-  - `config.ts`: every tunable: model ids per tier, agent tiers, token and fal prices, image sizes, `max_tokens`, limits, prefilter and QA thresholds, and `pricing.listingPriceUsd` (the $45 price the UI shows margin against).
+  Attempt, QA result, Decision and `FeedbackEntry` (one feedback log line), plus the
+  router and prompt agent outputs.
+  - `config.ts`: every tunable: model ids per tier, agent tiers, token and fal prices, image sizes, `max_tokens`, limits, prefilter and QA thresholds, `feedback` (diagnoser `minClusterSize` / `maxExamplesPerCluster`), and `pricing.listingPriceUsd` (the $45 price the UI shows margin against).
   - `prompts.ts`: system prompt per agent (router, synthesizer, refiner, qa) and user-text builders.
   - `metrics.ts`: free local `sharp` metrics (`computeLocalMetrics`) and the `prefilter` that rejects junk before any paid call.
   - `images.ts`: `prepareForVision`, auto-rotate + downscale + JPEG for every vision call and the editor input.
@@ -71,24 +90,30 @@ npm run build
   - `test-helpers.ts`: in-memory test images and scripted vision/editor fakes for tests.
 - `src/lib/`: filesystem store and shared helpers.
   - `src/lib/paths.ts`: `getDataDir()` (the only place `DATA_DIR` is read),
-    `safeJoin()` and the per-listing/per-photo folder helpers. All file access
+    `safeJoin()`, `feedbackLogPath()` and the per-listing/per-photo folder helpers. All file access
     from the store goes through `safeJoin`.
   - `src/lib/store.ts`: async listing/photo CRUD, validated with the schemas on
     read and write, atomic JSON writes, `StoreError` with code `not_found` / `invalid` / `conflict`,
     and `claimPhotoForRun`, which sets `processing` under a per-photo lock file.
   - `src/lib/http.ts`: shared route helpers: the one error-to-response mapper, size caps, JSON body reading and `safeHeaderFileName`.
-  - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost. It keeps an in-process run registry (a set on `globalThis`, shared by all route bundles): `isPhotoRunning(listingId, photoId)` is true from a successful claim until the run ends. The `/reset` route refuses while it is true; after a restart it is empty.
+  - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost. It keeps an in-process run registry (a set on `globalThis`, shared by all route bundles): `isPhotoRunning(listingId, photoId)` is true from a successful claim until the run ends. The `/reset` route refuses while it is true; after a restart it is empty. After the record is written it appends one `qa_fail` feedback entry per attempt whose QA failed (nothing for a first-attempt pass or a run that never reached QA); best-effort, a log failure is only `console.error`ed and never marks the photo `failed`.
+  - `src/lib/feedback.ts`: `appendFeedback(entries)` (validated, one JSON line each, one `appendFile`) and `readFeedback()` (`{ entries, invalidLines }`; missing file is empty) for `data/feedback.jsonl`.
+  - `src/lib/diagnose.ts`: pure meta-diagnoser: `diagnose(entries)` clusters by `(kind, roomType, dimension)` and attaches fixed proposals to clusters of at least `feedback.minClusterSize`; `renderDiagnosisReport` renders Markdown (untrusted text cut to 300 characters, newlines collapsed).
+  - `src/lib/eval.ts`: eval harness: `listEvalImages(folder)`, `runEval(images, providers)` (sequential `runPhoto`, no disk writes), `summarizeEval(rows)` and `formatEvalReport`.
   - `src/lib/review.ts`: client-safe pure helpers for the UI (no `node:*`, sharp, store or providers): status chips and room-type labels, `sortForReview`, `isRunAllEligible` (only `uploaded`/`failed`, never approved), `runQueue` with `RUN_ALL_CONCURRENCY = 2`, run-outcome handling (409 is quiet), `costSummary`/`formatUsd`, client upload checks, `reviewKeyAction` (j/k/a/r) and `exportSelection`/`canExport` (the client export selection rule below).
   - `src/lib/export.ts`: `buildExportZip(listing, maxBytes = MAX_EXPORT_BYTES)` builds the client zip in memory with `fflate`: `photos/<NN>-<room>-<k>.<ext>` (enhanced images re-encoded with `sharp` to strip editor metadata, skipped originals byte for byte) and `previews/<NN>-<room>-<k>-before-after.jpg` (1608×600 side-by-side). Entry names come only from position and room type and are checked against `^(photos|previews)/[a-z0-9-]+\.(jpg|png|webp)$`; source files come only from the photo records via `getPhotoFilePath`. Source bytes are summed with `fs.stat` before reading (300 MB cap, 413).
   - `src/lib/export-summary.ts`: pure (no `node:*`, sharp or store) `escapeHtml` and `buildExportSummary(listing)`, the email text as `{ html, text }`. The HTML is one styled `<div>` with only `<p>`, `<ul>`, `<li>`; every value is escaped.
   - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query).
 - `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, run all with Stop, keyboard review, reset), `export-panel.tsx` (export counts, "Download zip", "Email summary" with copy buttons; the summary HTML only goes to the clipboard, never into the page), `photo-card.tsx`, `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
+- `scripts/`: thin CLIs run with `tsx` (`diagnose.ts`, `eval.ts`; see Scripts).
 - `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
   ```
   data/listings/<listingId>/listing.json                  listing fields, no photos
   data/listings/<listingId>/photos/<photoId>/photo.json   one photo record
   data/listings/<listingId>/photos/<photoId>/original.<ext>  uploaded bytes
   data/listings/<listingId>/photos/<photoId>/attempt-<index>.<ext>  edited image per attempt (overwritten on re-run)
+  data/feedback.jsonl                                     append-only feedback log: one FeedbackEntry per line (qa_fail, human_reject)
+  data/feedback-report.md                                 latest `npm run diagnose` report (overwritten)
   ```
   One JSON file per photo, so photos of one listing can be updated concurrently.
 
