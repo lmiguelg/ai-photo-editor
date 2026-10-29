@@ -273,3 +273,27 @@ export async function claimPhotoForRun(listingId: string, photoId: string): Prom
     await fs.rm(lock, { force: true });
   }
 }
+
+/**
+ * Recovers a photo left `processing` by a crashed run: removes a stale `.run.lock` and
+ * sets the photo `failed` with "Run interrupted", keeping its cost, attempts and
+ * decision. `conflict` when the photo is neither processing nor locked.
+ */
+export async function resetStuckPhoto(listingId: string, photoId: string): Promise<Photo> {
+  const photo = await getPhoto(listingId, photoId);
+  if (!photo) throw new StoreError("not_found", `Photo not found: ${listingId}/${photoId}`);
+  const lock = safeJoin(photoDir(listingId, photoId), ".run.lock");
+  const locked = await fs.stat(lock).then(
+    () => true,
+    (err: unknown) => {
+      if (isNotFound(err)) return false;
+      throw err;
+    },
+  );
+  if (photo.status !== "processing" && !locked) {
+    throw new StoreError("conflict", `Photo is not stuck: ${listingId}/${photoId}`);
+  }
+  await fs.rm(lock, { force: true });
+  if (photo.status !== "processing") return photo;
+  return updatePhoto(listingId, photoId, (current) => ({ ...current, status: "failed", error: "Run interrupted" }));
+}

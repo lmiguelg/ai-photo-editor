@@ -51,6 +51,7 @@ npm run build
     - `POST /api/listings/[listingId]/photos/[photoId]/run`: run the pipeline on one photo synchronously and persist the result. Returns 409 while the photo is already `processing`; re-runs are allowed from any other status.
     - `POST /api/listings/[listingId]/photos/[photoId]/decision`: `{ verdict: "approved" | "rejected", note? }` on a `passed`/`needs_review` photo (409 otherwise).
     - `GET /api/listings/[listingId]/photos/[photoId]/image?kind=original|edited&attempt=<n>`: stored image bytes; the file name comes only from the photo record.
+    - `POST /api/listings/[listingId]/photos/[photoId]/reset`: recovers a photo stuck in `processing` after a crash or restart (`resetStuckPhoto`): it becomes `failed` with "Run interrupted" and a stale `.run.lock` is removed. 409 `Photo is running` while this process is running it (run registry in `process-photo.ts`); 409 `Photo is not stuck` when it is neither `processing` nor locked.
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
   `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
   Attempt, QA result and Decision, plus the router and prompt agent outputs.

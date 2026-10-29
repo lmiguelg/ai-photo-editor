@@ -7,6 +7,16 @@ import { claimPhotoForRun, getPhotoFilePath, savePhotoFile, updatePhoto } from "
 
 export const MAX_STORED_ERROR_LENGTH = 500;
 
+// Photos this process is running. Kept on `globalThis` so separately bundled route
+// modules share one set; it is empty after a restart, so a stuck photo can be reset.
+const RUNNING_KEY = Symbol.for("ai-photo-editor.process-photo.running");
+const running: Set<string> = ((globalThis as Record<symbol, unknown>)[RUNNING_KEY] ??= new Set<string>()) as Set<string>;
+
+/** True while `processPhoto` is running this photo in this process. */
+export function isPhotoRunning(listingId: string, photoId: string): boolean {
+  return running.has(`${listingId}/${photoId}`);
+}
+
 const EDITED_EXTENSIONS: Record<string, string> = { jpeg: "jpg", png: "png", webp: "webp" };
 
 /** Extension for edited bytes from their detected format; null when not a supported image. */
@@ -39,6 +49,8 @@ export async function processPhoto(
   providers: Providers,
 ): Promise<Photo> {
   const claimed = await claimPhotoForRun(listingId, photoId);
+  const key = `${listingId}/${photoId}`;
+  running.add(key);
   let spentUsd = 0;
   try {
     const image = await fs.readFile(getPhotoFilePath(listingId, photoId, claimed.originalFile));
@@ -66,5 +78,7 @@ export async function processPhoto(
       costUsd: photo.costUsd + spentUsd,
     }));
     throw new Error("Run failed", { cause: err });
+  } finally {
+    running.delete(key);
   }
 }
