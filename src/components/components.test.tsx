@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Listing, Photo } from "@/pipeline/schemas";
+import { ExportPanel } from "./export-panel";
 import { HomeView } from "./home-view";
 import { PhotoCard, type PhotoCardProps } from "./photo-card";
 import { ProviderModeBanner } from "./provider-mode-banner";
@@ -245,5 +246,57 @@ describe("HomeView", () => {
     expect(html).toContain("0 photos");
     expect(html).toContain("AI cost $0.00");
     expect(html).not.toContain("No listings yet");
+  });
+});
+
+describe("ExportPanel", () => {
+  const listing = (photos: Photo[]): Listing => ({
+    id: "listing-1",
+    name: "Beach house",
+    clientName: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+    photos,
+  });
+  const approved = (id: string) =>
+    passedPhoto({ id, decision: { verdict: "approved", note: "", decidedAt: NOW } });
+  const render = (photos: Photo[]) => renderToStaticMarkup(<ExportPanel listing={listing(photos)} />);
+
+  it("shows the counts and what is left out", () => {
+    const html = render([
+      approved("a"),
+      approved("b"),
+      approved("c"),
+      makePhoto({ id: "s", status: "skipped" }),
+      passedPhoto({ id: "w" }),
+      passedPhoto({ id: "x", decision: { verdict: "rejected", note: "", decidedAt: NOW } }),
+      makePhoto({ id: "f", status: "failed" }),
+      makePhoto({ id: "u" }),
+    ]);
+    expect(html).toContain('aria-labelledby="export-heading"');
+    expect(html).toContain("Export for client");
+    expect(html).toContain("Ready to export: 4 photos (3 enhanced, 1 original)");
+    expect(html).toContain("Left out: 1 awaiting review, 1 rejected by you, 1 failed, 1 not run yet");
+    expect(html).toContain("Download zip");
+    expect(html).toContain("Email summary");
+    expect(html).not.toContain('disabled=""');
+    expect(html).not.toContain("aria-describedby");
+    expect(html).not.toContain("$");
+  });
+
+  it("disables both buttons and explains why when nothing approved is enhanced", () => {
+    const html = render([makePhoto({ id: "s", status: "skipped" }), passedPhoto({ id: "w" })]);
+    expect(html).toContain("Ready to export: 1 photo (0 enhanced, 1 original)");
+    expect(html).toContain("Left out: 1 awaiting review");
+    expect(html).toContain(
+      '<p id="export-hint" class="text-sm text-neutral-700">Approve at least one enhanced photo to export. Photos the pipeline skipped as already good are included automatically.</p>',
+    );
+    const buttons = [...html.matchAll(/<button[^>]*>[^<]*<\/button>/g)].map((m) => m[0]);
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(button).toContain('disabled=""');
+      expect(button).toContain('aria-describedby="export-hint"');
+    }
+    expect(html).not.toContain("Left out: 0");
   });
 });

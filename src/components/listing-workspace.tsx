@@ -18,6 +18,7 @@ import {
 } from "@/lib/review";
 import { config } from "@/pipeline/config";
 import type { Listing, Photo } from "@/pipeline/schemas";
+import { ExportPanel } from "./export-panel";
 import { PhotoCard } from "./photo-card";
 import { UploadPanel } from "./upload-panel";
 
@@ -222,6 +223,8 @@ export function ListingWorkspace({ initialListing }: { initialListing: Listing }
           {listing.photos.length} {listing.photos.length === 1 ? "photo" : "photos"}, {toReview} to review
         </p>
       </header>
+
+      <ExportPanel listing={listing} />
 
       <UploadPanel
         listingId={listingId}

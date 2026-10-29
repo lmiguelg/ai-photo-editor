@@ -55,6 +55,8 @@ npm run build
     - `POST /api/listings/[listingId]/photos/[photoId]/decision`: `{ verdict: "approved" | "rejected", note? }` on a `passed`/`needs_review` photo (409 otherwise).
     - `GET /api/listings/[listingId]/photos/[photoId]/image?kind=original|edited&attempt=<n>`: stored image bytes; the file name comes only from the photo record.
     - `POST /api/listings/[listingId]/photos/[photoId]/reset`: recovers a photo stuck in `processing` after a crash or restart (`resetStuckPhoto`): it becomes `failed` with "Run interrupted" and a stale `.run.lock` is removed. 409 `Photo is running` while this process is running it (run registry in `process-photo.ts`); 409 `Photo is not stuck` when it is neither `processing` nor locked.
+    - `GET /api/listings/[listingId]/export`: the client zip (`buildExportZip` in `src/lib/export.ts`), `attachment; filename="<slug>-photos.zip"`, `no-store`, `nosniff`. 404 `Not found` for an invalid or unknown id, 409 `Nothing approved to export` without an approved enhanced photo, 413 `Export too large` past `MAX_EXPORT_BYTES`, 500 when a source file is missing.
+    - `GET /api/listings/[listingId]/export/summary`: `{ html, text }` email summary (`buildExportSummary`), `no-store`, `nosniff`; same 404/409 rules as the zip.
 - `src/pipeline/`: the agents and harness (config, schemas, prompts, providers, run loop).
   `src/pipeline/schemas.ts` holds the Zod schemas and types for Listing, Photo,
   Attempt, QA result and Decision, plus the router and prompt agent outputs.
@@ -76,9 +78,11 @@ npm run build
     and `claimPhotoForRun`, which sets `processing` under a per-photo lock file.
   - `src/lib/http.ts`: shared route helpers: the one error-to-response mapper, size caps, JSON body reading and `safeHeaderFileName`.
   - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost. It keeps an in-process run registry (a set on `globalThis`, shared by all route bundles): `isPhotoRunning(listingId, photoId)` is true from a successful claim until the run ends. The `/reset` route refuses while it is true; after a restart it is empty.
-  - `src/lib/review.ts`: client-safe pure helpers for the UI (no `node:*`, sharp, store or providers): status chips and room-type labels, `sortForReview`, `isRunAllEligible` (only `uploaded`/`failed`, never approved), `runQueue` with `RUN_ALL_CONCURRENCY = 2`, run-outcome handling (409 is quiet), `costSummary`/`formatUsd`, client upload checks and `reviewKeyAction` (j/k/a/r).
+  - `src/lib/review.ts`: client-safe pure helpers for the UI (no `node:*`, sharp, store or providers): status chips and room-type labels, `sortForReview`, `isRunAllEligible` (only `uploaded`/`failed`, never approved), `runQueue` with `RUN_ALL_CONCURRENCY = 2`, run-outcome handling (409 is quiet), `costSummary`/`formatUsd`, client upload checks, `reviewKeyAction` (j/k/a/r) and `exportSelection`/`canExport` (the client export selection rule below).
+  - `src/lib/export.ts`: `buildExportZip(listing, maxBytes = MAX_EXPORT_BYTES)` builds the client zip in memory with `fflate`: `photos/<NN>-<room>-<k>.<ext>` (enhanced images re-encoded with `sharp` to strip editor metadata, skipped originals byte for byte) and `previews/<NN>-<room>-<k>-before-after.jpg` (1608×600 side-by-side). Entry names come only from position and room type and are checked against `^(photos|previews)/[a-z0-9-]+\.(jpg|png|webp)$`; source files come only from the photo records via `getPhotoFilePath`. Source bytes are summed with `fs.stat` before reading (300 MB cap, 413).
+  - `src/lib/export-summary.ts`: pure (no `node:*`, sharp or store) `escapeHtml` and `buildExportSummary(listing)`, the email text as `{ html, text }`. The HTML is one styled `<div>` with only `<p>`, `<ul>`, `<li>`; every value is escaped.
   - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query).
-- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, run all with Stop, keyboard review, reset), `photo-card.tsx`, `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
+- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, run all with Stop, keyboard review, reset), `export-panel.tsx` (export counts, "Download zip", "Email summary" with copy buttons; the summary HTML only goes to the clipboard, never into the page), `photo-card.tsx`, `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
 - `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
   ```
   data/listings/<listingId>/listing.json                  listing fields, no photos
@@ -87,6 +91,10 @@ npm run build
   data/listings/<listingId>/photos/<photoId>/attempt-<index>.<ext>  edited image per attempt (overwritten on re-run)
   ```
   One JSON file per photo, so photos of one listing can be updated concurrently.
+
+## Client export
+
+Selection rule (`exportSelection`): a client export holds approved `passed`/`needs_review` photos with an edited file (the enhanced image) plus `skipped` photos (their originals); every other photo is left out with a reason. Export needs at least one approved enhanced photo. Nothing sent to clients (zip entries, previews, email summary) may hold costs, prices, margins, QA scores, prompts, notes, errors, original file names, ids or paths.
 
 ## Cost rules (the goal is maximum margin with a great product)
 
@@ -104,7 +112,8 @@ These are product requirements, not suggestions:
   are sent with `cache_control`.
 - Retries are capped (`maxRetries`) and refinement retries are text-only.
 - Every paid call records its cost; a photo stops at `maxCostPerPhotoUsd`.
-  Costs are visible per photo and per listing in the UI and exports' summaries.
+  Costs are visible per photo and per listing in the owner UI only; they never
+  appear in anything sent to clients (export zips or email summaries).
 - Without `ANTHROPIC_API_KEY` / `FAL_KEY` the pipeline uses mock providers so
   tests and the UI work for free. Tests never call real APIs.
 
