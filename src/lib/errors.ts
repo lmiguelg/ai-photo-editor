@@ -1,6 +1,9 @@
-export type StoreErrorCode = "not_found" | "invalid";
+export type StoreErrorCode = "not_found" | "invalid" | "conflict";
 
-/** Store failure with a code API routes can map to 404 (`not_found`) or 400 (`invalid`). */
+/**
+ * Store failure with a code API routes map to 404 (`not_found`), 400 (`invalid`) or
+ * 409 (`conflict`). The message is for logs only and never reaches a response.
+ */
 export class StoreError extends Error {
   readonly code: StoreErrorCode;
 

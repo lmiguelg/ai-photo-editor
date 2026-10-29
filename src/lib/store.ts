@@ -226,3 +226,50 @@ export function getPhotoFilePath(listingId: string, photoId: string, fileName: s
   const name = parseOrThrow(FileNameSchema, fileName, "file name");
   return safeJoin(photoDir(listingId, photoId), name);
 }
+
+export async function getPhoto(listingId: string, photoId: string): Promise<Photo | null> {
+  if (!IdSchema.safeParse(listingId).success || !IdSchema.safeParse(photoId).success) return null;
+  return readPhoto(listingId, photoId);
+}
+
+/** Writes an image file (e.g. an edited attempt) into a photo's folder. */
+export async function savePhotoFile(
+  listingId: string,
+  photoId: string,
+  fileName: string,
+  data: Buffer | Uint8Array,
+): Promise<void> {
+  await fs.writeFile(getPhotoFilePath(listingId, photoId, fileName), data);
+}
+
+/**
+ * Sets the photo to `processing` unless it already is (`conflict`). The read-check-write
+ * runs under an exclusive-create lock file in the photo folder, so two concurrent
+ * claims can't both succeed. A held lock is a conflict too.
+ */
+export async function claimPhotoForRun(listingId: string, photoId: string): Promise<Photo> {
+  if (!(await getPhoto(listingId, photoId))) {
+    throw new StoreError("not_found", `Photo not found: ${listingId}/${photoId}`);
+  }
+  const lock = safeJoin(photoDir(listingId, photoId), ".run.lock");
+  let handle: fs.FileHandle;
+  try {
+    handle = await fs.open(lock, "wx");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === "EEXIST") {
+      throw new StoreError("conflict", `Photo is being claimed: ${listingId}/${photoId}`);
+    }
+    throw err;
+  }
+  try {
+    return await updatePhoto(listingId, photoId, (photo) => {
+      if (photo.status === "processing") {
+        throw new StoreError("conflict", `Photo is already processing: ${listingId}/${photoId}`);
+      }
+      return { ...photo, status: "processing", error: null };
+    });
+  } finally {
+    await handle.close();
+    await fs.rm(lock, { force: true });
+  }
+}
