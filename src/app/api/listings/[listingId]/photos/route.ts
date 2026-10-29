@@ -1,26 +1,10 @@
 import path from "node:path";
-import sharp from "sharp";
 import { ListingParamsSchema, OriginalNameSchema, UploadFieldsSchema } from "@/lib/api-schemas";
 import { checkUploadLength, errorResponse, HttpError, MAX_UPLOAD_BYTES, parseParams } from "@/lib/http";
+import { detectImageFormat, EXTENSION_FORMATS } from "@/lib/image-check";
 import { addPhoto } from "@/lib/store";
 
-/** Upload extension to the format `sharp` must detect in the bytes. */
-const EXTENSION_FORMATS = new Map([
-  ["jpg", "jpeg"],
-  ["jpeg", "jpeg"],
-  ["png", "png"],
-  ["webp", "webp"],
-]);
-
 const UNSUPPORTED = "Unsupported image type";
-
-async function detectFormat(bytes: Buffer): Promise<string | undefined> {
-  try {
-    return (await sharp(bytes).metadata()).format;
-  } catch {
-    throw new HttpError(400, UNSUPPORTED);
-  }
-}
 
 export async function POST(
   request: Request,
@@ -46,7 +30,7 @@ export async function POST(
     const expected = EXTENSION_FORMATS.get(path.extname(originalName).slice(1).toLowerCase());
     if (!expected) throw new HttpError(400, UNSUPPORTED);
     const data = Buffer.from(await file.arrayBuffer());
-    if ((await detectFormat(data)) !== expected) throw new HttpError(400, UNSUPPORTED);
+    if ((await detectImageFormat(data)) !== expected) throw new HttpError(400, UNSUPPORTED);
 
     return Response.json(await addPhoto(listingId, { roomType, originalName, data }), { status: 201 });
   } catch (err) {
