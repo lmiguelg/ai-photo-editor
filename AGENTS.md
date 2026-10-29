@@ -62,12 +62,11 @@ npm run build
 
 - `src/app/`: routes and API route handlers.
   - `layout.tsx`: header plus `ProviderModeBanner` above `<main>`.
-  - `/` (`page.tsx`): create-listing form, import-from-link form and the listings list (photo count, "N to review", AI cost). Rendered per request (`dynamic = "force-dynamic"`).
+  - `/` (`page.tsx`): create-listing form and the listings list (photo count, "N to review", AI cost). Rendered per request (`dynamic = "force-dynamic"`).
   - `/listings/[listingId]` (`listings/[listingId]/page.tsx`): loads the listing with `getListing` (404 via `notFound()`) and renders the client `ListingWorkspace`. Rendered per request.
   - `src/app/api/listings/` (JSON in and out, errors are `{"error": "<fixed message>"}`; invalid ids give 404):
     - `GET /api/listings`: all listings with their photos.
     - `POST /api/listings`: create a listing from `{ name, clientName? }` (201).
-    - `POST /api/listings/import`: create a listing from an Airbnb or Booking.com link, `{ url, name?, clientName? }` parsed with `ListingImportInputSchema` (`importListing` in `src/lib/listing-import/`). 201 `{ listing, imported, skipped }`; photos are `other`, named `<site>-<NN>.<ext>`, name defaults to `Imported from Airbnb` / `Imported from Booking.com`. 400 `Unsupported listing link` for a link off the allowlist, 400 `Invalid request` for a malformed body, 502 `Could not fetch listing` for any page fetch failure, 422 `No photos found` (no listing is created). Bodies never hold the URL, hosts or addresses.
     - `GET /api/listings/[listingId]`: one listing with its photos.
     - `POST /api/listings/[listingId]/photos`: multipart upload of one `file` (jpg/jpeg/png/webp, checked with `sharp`) plus `roomType` (201). Capped at 25 MB per file (`MAX_UPLOAD_BYTES`); needs `Content-Length` (411 without, 413 over the cap).
     - `POST /api/listings/[listingId]/photos/[photoId]/run`: run the pipeline on one photo synchronously and persist the result. Returns 409 while the photo is already `processing`; re-runs are allowed from any other status.
@@ -96,14 +95,7 @@ npm run build
   - `src/lib/store.ts`: async listing/photo CRUD, validated with the schemas on
     read and write, atomic JSON writes, `StoreError` with code `not_found` / `invalid` / `conflict`,
     and `claimPhotoForRun`, which sets `processing` under a per-photo lock file.
-  - `src/lib/image-check.ts`: `EXTENSION_FORMATS` and `detectImageFormat(bytes)` (`jpg|png|webp|null` from sharp's detected format), shared by the upload route and link imports.
-  - `src/lib/listing-import/`: link imports. Import is free (no paid call).
-    - `sites.ts`: the one allowlist: exact page hosts (`airbnb.<tld>` / `www.airbnb.<tld>` for a fixed TLD list, `booking.com` / `www.booking.com`), the image CDN per site (`a0.muscache.com`, `cf.bstatic.com`) and `isAllowedUrl` (https, no credentials, default port, no IP literal, allowlisted host).
-    - `net.ts`: `safeGet(url, { maxBytes, accept, isAllowedHost })`, the only code that opens sockets: `node:https` with a `publicLookup` that fails the connection when any resolved address fails `isPublicAddress` (checked at connect time), at most 3 manual redirects each re-checked with `isAllowedUrl`, 15 s timeout, streamed body aborted past `maxBytes`, non-2xx fails, no cookies. `Transport` is its shape.
-    - `extract.ts`: pure `extractImageUrls(html, site)`: decodes JSON escapes and `&amp;`, keeps CDN photo URLs in page order (Airbnb at `im_w=1440` without `/user/`, Booking.com at `/max1280x900/`), de-duplicated ignoring the query.
-    - `limits.ts`: `MAX_IMPORT_PAGE_BYTES` (5 MB), `MAX_IMPORT_PHOTOS` (50), `MAX_IMPORT_TOTAL_BYTES` (300 MB); images are capped at `MAX_UPLOAD_BYTES`.
-    - `fixture.ts`: `fixtureTransport`, a fixed page per site and `sharp`-generated images (5 valid, 1 non-image), never a socket.
-    - `index.ts`: `importTransport(env)` (the fixture in full mock mode, `safeGet` otherwise; the only switch) and `importListing(input, transport)`: fetches the page, then each image one at a time with the upload checks (`image/*` content type and a detected format), skipping and counting failures, and only then creates the listing and adds the photos in page order.
+  - `src/lib/image-check.ts`: `EXTENSION_FORMATS` and `detectImageFormat(bytes)` (`jpg|png|webp|null` from sharp's detected format), used by the upload route only.
   - `src/lib/http.ts`: shared route helpers: the one error-to-response mapper, size caps, JSON body reading and `safeHeaderFileName`.
   - `src/lib/process-photo.ts`: `processPhoto`, which claims a photo, runs `runPhoto` on it and persists edited files, attempts, status and accumulated cost. It keeps an in-process run registry (a set on `globalThis`, shared by all route bundles): `isPhotoRunning(listingId, photoId)` is true from a successful claim until the run ends. The `/reset` route refuses while it is true; after a restart it is empty. After the record is written it appends one `qa_fail` feedback entry per attempt whose QA failed (nothing for a first-attempt pass or a run that never reached QA); best-effort, a log failure is only `console.error`ed and never marks the photo `failed`.
   - `src/lib/feedback.ts`: `appendFeedback(entries)` (validated, one JSON line each, one `appendFile`) and `readFeedback()` (`{ entries, invalidLines }`; missing file is empty) for `data/feedback.jsonl`.
@@ -112,8 +104,8 @@ npm run build
   - `src/lib/review.ts`: client-safe pure helpers for the UI (no `node:*`, sharp, store or providers): status chips and room-type labels, `sortForReview`, `isRunAllEligible` (only `uploaded`/`failed`, never approved), `selectionState(photos, selectedIds)` (`{ eligibleIds, selectedIds, all, some }`, selection kept to eligible photos) and `runSelectedQueue(photos, selectedIds, runningIds)`, `runQueue` with `RUN_ALL_CONCURRENCY = 2`, run-outcome handling (409 is quiet), `costSummary`/`formatUsd`, client upload checks, `reviewKeyAction` (j/k/a/r) and `exportSelection`/`canExport` (the client export selection rule below).
   - `src/lib/export.ts`: `buildExportZip(listing, maxBytes = MAX_EXPORT_BYTES)` builds the client zip in memory with `fflate`: `photos/<NN>-<room>-<k>.<ext>` (enhanced images re-encoded with `sharp` to strip editor metadata, skipped originals byte for byte) and `previews/<NN>-<room>-<k>-before-after.jpg` (1608×600 side-by-side). Entry names come only from position and room type and are checked against `^(photos|previews)/[a-z0-9-]+\.(jpg|png|webp)$`; source files come only from the photo records via `getPhotoFilePath`. Source bytes are summed with `fs.stat` before reading (300 MB cap, 413).
   - `src/lib/export-summary.ts`: pure (no `node:*`, sharp or store) `escapeHtml` and `buildExportSummary(listing)`, the email text as `{ html, text }`. The HTML is one styled `<div>` with only `<p>`, `<ul>`, `<li>`; every value is escaped.
-  - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query, and `ListingImportInputSchema`, which turns `url` into `{ site, url }` and marks off-allowlist links with `UNSUPPORTED_LINK`).
-- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, photo selection with "Select all" and "Run selected (N)", run all and run selected through one batch runner with Stop, keyboard review, reset), `export-panel.tsx` (export counts, "Download zip", "Email summary" with copy buttons; the summary HTML only goes to the clipboard, never into the page), `photo-card.tsx` (with a `Select <name>` checkbox, enabled only for run-all-eligible photos not running), `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `import-listing-form.tsx` (import from an Airbnb or Booking.com link, below the create form), `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
+  - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query).
+- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, photo selection with "Select all" and "Run selected (N)", run all and run selected through one batch runner with Stop, keyboard review, reset), `export-panel.tsx` (export counts, "Download zip", "Email summary" with copy buttons; the summary HTML only goes to the clipboard, never into the page), `photo-card.tsx` (with a `Select <name>` checkbox, enabled only for run-all-eligible photos not running), `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
 - `scripts/`: thin CLIs run with `tsx` (`diagnose.ts`, `eval.ts`; see Scripts).
 - `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
   ```
@@ -150,9 +142,6 @@ These are product requirements, not suggestions:
   appear in anything sent to clients (export zips or email summaries).
 - Without `ANTHROPIC_API_KEY` / `FAL_KEY` the pipeline uses mock providers so
   tests and the UI work for free. Tests never call real APIs.
-- Importing photos from a listing link is free: it makes no paid call, and only
-  pipeline runs cost money. In full mock mode the import uses the fixture
-  transport (`importTransport`), so tests never fetch from the network.
 
 ## Conventions
 
