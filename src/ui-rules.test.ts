@@ -68,7 +68,7 @@ describe("UI repo rules", () => {
   });
 
   it("pages that read the store or env render per request", async () => {
-    for (const page of ["app/page.tsx", "app/listings/[listingId]/page.tsx"]) {
+    for (const page of ["app/(owner)/page.tsx", "app/(owner)/listings/[listingId]/page.tsx"]) {
       const text = await readFile(path.join(SRC, page), "utf8");
       expect(text, page).toContain('export const dynamic = "force-dynamic";');
     }

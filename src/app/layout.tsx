@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ProviderModeBanner } from "@/components/provider-mode-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,20 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
-        <header className="border-b border-neutral-200 bg-white">
-          <div className="mx-auto max-w-5xl px-4 py-3">
-            <Link
-              href="/"
-              className="rounded text-lg font-semibold hover:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-            >
-              AI Photo Editor
-            </Link>
-          </div>
-        </header>
-        <ProviderModeBanner />
-        <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
-      </body>
+      <body className="min-h-screen bg-neutral-50 text-neutral-900 antialiased">{children}</body>
     </html>
   );
 }

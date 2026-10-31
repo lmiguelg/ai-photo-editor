@@ -2,14 +2,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { HomeView } from "@/components/home-view";
 import { TestRouter } from "@/components/test-router";
+import OwnerLayout from "./(owner)/layout";
 import RootLayout, { metadata } from "./layout";
 
-// Server-renders the root layout with the home page's view (no listings) as its child.
+// Server-renders the root and owner layouts with the home page's view (no listings) as their child.
 function renderShell(): string {
   return renderToStaticMarkup(
     <TestRouter>
       <RootLayout>
-        <HomeView listings={[]} />
+        <OwnerLayout>
+          <HomeView listings={[]} />
+        </OwnerLayout>
       </RootLayout>
     </TestRouter>,
   );
@@ -39,7 +42,7 @@ describe("app shell", () => {
   });
 
   it("the home page reads the store per request", async () => {
-    const page = await import("./page");
+    const page = await import("./(owner)/page");
     expect(page.dynamic).toBe("force-dynamic");
   });
 });
