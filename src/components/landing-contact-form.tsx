@@ -19,7 +19,7 @@ const FIELDS: { id: Field; label: string; type?: string; multiline?: boolean }[]
  * Validates the contact fields with Zod and, when valid, opens the visitor's mail app
  * with a pre-filled email. Sends and stores nothing.
  */
-export function LandingContactForm({ contactEmail }: { contactEmail: string }) {
+export function LandingContactForm({ contactEmail, submitLabel }: { contactEmail: string; submitLabel: string }) {
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -73,9 +73,9 @@ export function LandingContactForm({ contactEmail }: { contactEmail: string }) {
       })}
       <button
         type="submit"
-        className={`w-full rounded-md bg-blue-700 px-5 py-3 text-base font-semibold text-white hover:bg-blue-800 sm:w-auto ${FOCUS}`}
+        className={`w-full rounded-full bg-linear-to-r from-rose-400 to-amber-300 px-6 py-3 text-base font-bold text-slate-950 shadow-lg shadow-rose-500/25 hover:shadow-xl active:scale-[0.98] motion-safe:transition motion-safe:hover:-translate-y-0.5 sm:w-auto ${FOCUS}`}
       >
-        Email us your request
+        {submitLabel}
       </button>
     </form>
   );
