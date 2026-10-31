@@ -12,9 +12,9 @@ import { addPhoto, createListing, updatePhoto } from "@/lib/store";
 import { config } from "@/pipeline/config";
 import type { Photo } from "@/pipeline/schemas";
 import { detailedImage } from "@/pipeline/test-helpers";
-import RootLayout from "./layout";
-import ListingPage from "./listings/[listingId]/page";
-import Home from "./page";
+import OwnerLayout from "./(owner)/layout";
+import ListingPage from "./(owner)/listings/[listingId]/page";
+import Home from "./(owner)/page";
 
 setupApiTestEnv("management-ui-qa");
 
@@ -192,7 +192,7 @@ describe("listing page with the real store", () => {
 });
 
 describe("layout banner", () => {
-  const shell = () => renderToStaticMarkup(<RootLayout><p>child</p></RootLayout>);
+  const shell = () => renderToStaticMarkup(<OwnerLayout><p>child</p></OwnerLayout>);
 
   it("sits above <main> in mock mode and names both keys", () => {
     const html = shell();

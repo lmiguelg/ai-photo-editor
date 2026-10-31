@@ -38,8 +38,21 @@ describe("UI repo rules", () => {
     expect(imports(text)).toEqual(["@/pipeline/schemas"]);
   });
 
-  it("client components import only schemas, config, review helpers and other client components", async () => {
-    const allowed = new Set(["react", "next/link", "next/navigation", "@/pipeline/schemas", "@/pipeline/config", "@/lib/review"]);
+  it("src/lib/landing-content.ts imports nothing outside @/pipeline/config", async () => {
+    const text = await readFile(path.join(SRC, "lib", "landing-content.ts"), "utf8");
+    expect(imports(text).filter((source) => source !== "@/pipeline/config")).toEqual([]);
+  });
+
+  it("client components import only schemas, config, review, next/image and other client components", async () => {
+    const allowed = new Set([
+      "react",
+      "next/link",
+      "next/navigation",
+      "next/image",
+      "@/pipeline/schemas",
+      "@/pipeline/config",
+      "@/lib/review",
+    ]);
     const offenders: string[] = [];
     for (const file of await sourceFiles(path.join(SRC, "components"))) {
       if (isTest(file)) continue;
@@ -68,7 +81,7 @@ describe("UI repo rules", () => {
   });
 
   it("pages that read the store or env render per request", async () => {
-    for (const page of ["app/page.tsx", "app/listings/[listingId]/page.tsx"]) {
+    for (const page of ["app/(owner)/page.tsx", "app/(owner)/listings/[listingId]/page.tsx"]) {
       const text = await readFile(path.join(SRC, page), "utf8");
       expect(text, page).toContain('export const dynamic = "force-dynamic";');
     }
