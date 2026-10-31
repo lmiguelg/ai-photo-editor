@@ -38,7 +38,7 @@ export const STEPS: LandingStep[] = [
 ];
 
 export interface LandingExample {
-  /** Used in the slider alt text ("Original photo <name>") and range label. */
+  /** Plain noun phrase, no article: slider alt "Original photo <name>", range label "Before/after comparison for <name>". */
   name: string;
   beforeSrc: string;
   afterSrc: string;
@@ -48,14 +48,14 @@ export interface LandingExample {
 
 export const EXAMPLES: LandingExample[] = [
   {
-    name: "of a living room with a white corner sofa",
+    name: "living room with a white corner sofa",
     beforeSrc: "/examples/living-room-before.jpg",
     afterSrc: "/examples/living-room-after.jpg",
     width: 1600,
     height: 800,
   },
   {
-    name: "of an apartment dining area with an armchair by the window",
+    name: "apartment dining area with an armchair by the window",
     beforeSrc: "/examples/apartment-before.jpg",
     afterSrc: "/examples/apartment-after.jpg",
     width: 1600,

@@ -32,7 +32,7 @@ export const metadata: Metadata = {
         url: OG_EXAMPLE.afterSrc,
         width: OG_EXAMPLE.width,
         height: OG_EXAMPLE.height,
-        alt: `Enhanced listing photo ${OG_EXAMPLE.name}`,
+        alt: `Enhanced listing photo: ${OG_EXAMPLE.name}`,
       },
     ],
   },

@@ -68,3 +68,11 @@ describe("landing page markup", () => {
     expect(image.alt).toBeTruthy();
   });
 });
+
+describe("landing example labels", () => {
+  it("slider labels and alt text read as plain phrases (no dangling 'for of' / 'photo of of')", () => {
+    expect(html).not.toMatch(/comparison for (of|a|an|the) /);
+    expect(html).not.toMatch(/alt="(Original|Edited) photo (of|a|an|the) /);
+    expect(html).toContain('aria-label="Before/after comparison for living room with a white corner sofa"');
+  });
+});
