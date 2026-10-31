@@ -13,12 +13,10 @@ import {
   HERO,
   OFFER,
   PAGE_META,
-  PRICE,
   PROBLEM,
   PROOF,
   STATS,
 } from "@/lib/landing-content";
-import { config } from "@/pipeline/config";
 import LandingPage, { metadata } from "./page";
 
 const ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -38,19 +36,18 @@ function section(id: string): string {
 }
 
 describe("rework 1 copy (QA)", () => {
-  it("the price everywhere comes from config as whole dollars", () => {
-    expect(PRICE).toBe(`$${Math.round(config.pricing.listingPriceUsd)}`);
-    expect(HERO.cta).toBe(`Enhance my listing for ${PRICE}`);
-    expect(OFFER.heading).toBe(`One flat price: ${PRICE} per listing`);
-    expect(PAGE_META.description).toContain(`${PRICE} per listing`);
+  it("no price appears in the copy or metadata (the owner quotes it by email)", () => {
+    expect(HERO.cta).toBe("Ask about my listing");
+    expect(OFFER.heading).toBe("Tell us about your listing");
+    expect(PAGE_META.description).not.toMatch(/\$|price|per listing/i);
   });
 
   it("the hero has the rework headline, sub-line, CTA to #contact and a note with no unsupported approval promise", () => {
     const hero = section("hero-heading");
     expect(decode(hero)).toContain(HERO.headline);
     expect(decode(hero)).toContain(HERO.subline);
-    expect(hero).toMatch(/<a id="hero-cta" href="#contact"[^>]*>Enhance my listing for <!-- -->\$45<\/a>|<a id="hero-cta" href="#contact"[^>]*>Enhance my listing for \$45<\/a>/);
-    expect(HERO.note).toBe("Up to 25 photos per listing.");
+    expect(hero).toMatch(/<a id="hero-cta" href="#contact"[^>]*>Ask about my listing<\/a>/);
+    expect(HERO.note).toBe("Email us to get started.");
     expect(text.toLowerCase()).not.toContain("before anything goes live");
   });
 
@@ -88,11 +85,11 @@ describe("rework 1 copy (QA)", () => {
     for (const kept of ["furniture", "fixtures", "walls", "windows", "views"]) expect(FAITHFULNESS.weNeverChange).toContain(kept);
   });
 
-  it("the offer is only the flat price and photo limit: no subscription or per-photo fee claim", () => {
+  it("the offer section names no price, tier, subscription or per-photo fee", () => {
     const offer = section("offer-heading");
     expect(offer).toContain(OFFER.heading);
-    expect(OFFER.body).toBe("Up to 25 photos.");
-    expect(offer).toMatch(/<a href="#contact"[^>]*>Enhance my listing for (<!-- -->)?\$45<\/a>/);
+    expect(OFFER.body).toBe("Email us your photos and we will reply with the details.");
+    expect(offer).toMatch(/<a href="#contact"[^>]*>Ask about my listing<\/a>/);
     const lower = text.toLowerCase();
     expect(lower).not.toContain("per-photo");
     expect(lower).not.toContain("per photo");
@@ -118,7 +115,7 @@ describe("rework 1 copy (QA)", () => {
   it("metadata uses the rework title and description, and OG copies them", () => {
     expect(PAGE_META.title).toBe(`Enhance your Airbnb and Vrbo photos | ${BRAND_NAME}`);
     expect(PAGE_META.description).toBe(
-      "Fix the light, colour and crooked lines in your listing photos for $45 per listing. We never change what guests will find.",
+      "Fix the light, colour and crooked lines in your listing photos. We never change what guests will find.",
     );
     expect(metadata.title).toBe(PAGE_META.title);
     expect(metadata.description).toBe(PAGE_META.description);

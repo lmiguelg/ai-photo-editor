@@ -1,8 +1,7 @@
-// All copy and data for the public landing page (/landing). Pure: imports only config. The page
+// All copy and data for the public landing page (/landing). Pure: no imports. The page
 // may only promise what the pipeline does (FAITHFULNESS_RULE in src/pipeline/prompts.ts)
 // and must never show owner data (costs, margins, scores). Every stat needs a source URL
 // and year; the research behind them is in factory/jobs/010-landing-page/research.md.
-import { config } from "@/pipeline/config";
 
 // Placeholders: the owner sets the real business name and address before publishing.
 export const BRAND_NAME = "AI Photo Editor";
@@ -15,23 +14,19 @@ export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}`;
 /** `mailto:` link with the URI-encoded subject, used by the final CTA button. */
 export const CONTACT_MAILTO_WITH_SUBJECT = `${CONTACT_MAILTO}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`;
 
-// pricing-model.md section 1: "$45 per listing (flat, up to 25 photos)".
-export const PHOTOS_PER_LISTING = 25;
-
-/** The listing price as whole dollars, from config (the single source of the price). */
-export const PRICE = `$${Math.round(config.pricing.listingPriceUsd)}`;
+// The page shows no price on purpose: the owner quotes it when a host gets in touch.
 
 export const PAGE_META = {
   title: `Enhance your Airbnb and Vrbo photos | ${BRAND_NAME}`,
-  description: `Fix the light, colour and crooked lines in your listing photos for ${PRICE} per listing. We never change what guests will find.`,
+  description: `Fix the light, colour and crooked lines in your listing photos. We never change what guests will find.`,
 };
 
 export const HERO = {
   headline: "Make your listing photos look their best. Keep your place exactly as it is.",
   subline:
     "Send the photos you already have. We fix the light, colour and crooked lines, and never add, remove or reshape anything a guest will find on arrival.",
-  cta: `Enhance my listing for ${PRICE}`,
-  note: `Up to ${PHOTOS_PER_LISTING} photos per listing.`,
+  cta: "Ask about my listing",
+  note: "Email us to get started.",
 };
 
 export const HEADER_CTA = "Enhance my listing";
@@ -176,8 +171,8 @@ export const FAQ: LandingFaq[] = [
 ];
 
 export const OFFER = {
-  heading: `One flat price: ${PRICE} per listing`,
-  body: `Up to ${PHOTOS_PER_LISTING} photos.`,
+  heading: "Tell us about your listing",
+  body: "Email us your photos and we will reply with the details.",
 };
 
 export const FINAL_CTA = {

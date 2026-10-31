@@ -47,11 +47,11 @@ describe("landing page markup", () => {
     for (const img of html.match(/<img [^>]*>/g) ?? []) expect(img).toMatch(/alt="[^"]+"/);
   });
 
-  it("lists exactly three steps, the $45 offer, the faithfulness promise and FAQ details", () => {
+  it("lists exactly three steps, the contact offer, the faithfulness promise and FAQ details", () => {
     for (const step of STEPS) expect(html).toContain(step.title);
     expect(html.match(/<ol[\s\S]*?<\/ol>/)?.[0].match(/<li/g)).toHaveLength(3);
-    expect(html).toContain("$45");
-    expect(html).toContain("Up to 25 photos");
+    expect(html).not.toContain("$");
+    expect(html).toContain("Tell us about your listing");
     expect(html).toContain("We never add, remove or reshape anything that would misrepresent your property.");
     expect((html.match(/<details/g) ?? []).length).toBeGreaterThanOrEqual(4);
     expect(html).toContain("<summary");

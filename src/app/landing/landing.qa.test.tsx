@@ -5,7 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { CONTACT_EMAIL, EXAMPLES, FAITHFULNESS, FAQ, STATS } from "@/lib/landing-content";
-import { config } from "@/pipeline/config";
 import LandingPage from "./page";
 
 const ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -76,15 +75,8 @@ describe("landing page markup (QA)", () => {
     expect(html).not.toMatch(/<form[\s>]/);
   });
 
-  it("renders the price from config as whole dollars per listing (req 9)", () => {
-    expect(text).toContain(`$${Math.round(config.pricing.listingPriceUsd)}`);
-    expect(text).toMatch(/\$45\s+per listing/);
-  });
-
-  it("shows no other price, tier or overage (req 9)", () => {
-    const dollars = text.match(/\$\s?\d[\d,.]*/g) ?? [];
-    expect(dollars.length).toBeGreaterThan(0);
-    expect([...new Set(dollars)]).toEqual(["$45"]);
+  it("shows no price, tier or overage: the owner quotes by email", () => {
+    expect(text.match(/\$\s?\d[\d,.]*/g) ?? []).toEqual([]);
     for (const needle of ["$79", "$149", "$299", "1.50", "overage", "discount", "Tier", "tier"]) {
       expect(text, needle).not.toContain(needle);
     }

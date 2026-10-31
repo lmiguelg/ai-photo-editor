@@ -6,7 +6,6 @@ import {
   CONTACT_SUBJECT,
   EXAMPLES,
   FAQ,
-  PHOTOS_PER_LISTING,
   STATS,
   STEPS,
 } from "./landing-content";
@@ -52,7 +51,6 @@ describe("landing content", () => {
       expect(example.afterSrc).toMatch(/^\/examples\/[a-z0-9-]+\.(jpg|webp)$/);
       expect(Math.max(example.width, example.height)).toBeLessThanOrEqual(1600);
     }
-    expect(PHOTOS_PER_LISTING).toBe(25);
     expect(CONTACT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+$/);
   });
 
