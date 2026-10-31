@@ -38,8 +38,27 @@ describe("UI repo rules", () => {
     expect(imports(text)).toEqual(["@/pipeline/schemas"]);
   });
 
-  it("client components import only schemas, config, review helpers and other client components", async () => {
-    const allowed = new Set(["react", "next/link", "next/navigation", "@/pipeline/schemas", "@/pipeline/config", "@/lib/review"]);
+  it("src/lib/landing-contact.ts imports only zod", async () => {
+    const text = await readFile(path.join(SRC, "lib", "landing-contact.ts"), "utf8");
+    expect(imports(text)).toEqual(["zod"]);
+  });
+
+  it("src/lib/landing-content.ts imports nothing outside @/pipeline/config", async () => {
+    const text = await readFile(path.join(SRC, "lib", "landing-content.ts"), "utf8");
+    expect(imports(text).filter((source) => source !== "@/pipeline/config")).toEqual([]);
+  });
+
+  it("client components import only schemas, config, review and landing-contact helpers, next/image and other client components", async () => {
+    const allowed = new Set([
+      "react",
+      "next/link",
+      "next/navigation",
+      "next/image",
+      "@/pipeline/schemas",
+      "@/pipeline/config",
+      "@/lib/review",
+      "@/lib/landing-contact",
+    ]);
     const offenders: string[] = [];
     for (const file of await sourceFiles(path.join(SRC, "components"))) {
       if (isTest(file)) continue;
