@@ -1,7 +1,8 @@
-// All copy and data for the public landing page (/landing). Pure: no imports. The page
+// All copy and data for the public landing page (/landing). Pure: imports only config. The page
 // may only promise what the pipeline does (FAITHFULNESS_RULE in src/pipeline/prompts.ts)
 // and must never show owner data (costs, margins, scores). Every stat needs a source URL
 // and year; the research behind them is in factory/jobs/010-landing-page/research.md.
+import { config } from "@/pipeline/config";
 
 // Placeholders: the owner sets the real business name and address before publishing.
 export const BRAND_NAME = "AI Photo Editor";
@@ -10,11 +11,27 @@ export const CONTACT_EMAIL = "hello@example.com";
 // pricing-model.md section 1: "$45 per listing (flat, up to 25 photos)".
 export const PHOTOS_PER_LISTING = 25;
 
+/** The listing price as whole dollars, from config (the single source of the price). */
+export const PRICE = `$${Math.round(config.pricing.listingPriceUsd)}`;
+
+export const PAGE_META = {
+  title: `Enhance your Airbnb and Vrbo photos | ${BRAND_NAME}`,
+  description: `Fix the light, colour and crooked lines in your listing photos for ${PRICE} per listing. We never change what guests will find.`,
+};
+
 export const HERO = {
-  headline: "Better-looking listing photos for Airbnb and Vrbo hosts, true to your place",
+  headline: "Make your listing photos look their best. Keep your place exactly as it is.",
   subline:
-    "We fix the light, colour and crooked lines in the photos you already have, and never add, remove or reshape a thing.",
-  cta: "Get your photos enhanced",
+    "Send the photos you already have. We fix the light, colour and crooked lines, and never add, remove or reshape anything a guest will find on arrival.",
+  cta: `Enhance my listing for ${PRICE}`,
+  note: `Up to ${PHOTOS_PER_LISTING} photos per listing.`,
+};
+
+export const HEADER_CTA = "Enhance my listing";
+
+export const PROBLEM = {
+  heading: "Great places get scrolled past",
+  body: "Dim rooms, yellow light and tilted walls make a lovely place look ordinary next to the listing above it. Your photos are the first thing a guest judges.",
 };
 
 export interface LandingStep {
@@ -24,16 +41,16 @@ export interface LandingStep {
 
 export const STEPS: LandingStep[] = [
   {
-    title: "Send your photos",
-    body: "Email us the listing photos you already have, as JPG, PNG or WebP files.",
+    title: "Send what you have",
+    body: "Email us the photos already on your listing, as JPG, PNG or WebP.",
   },
   {
-    title: "We enhance them",
-    body: "Our AI corrects light, exposure, white balance and colour, and straightens tilted lines. Every edit goes through an automated quality check.",
+    title: "We fix light and colour",
+    body: "Light, exposure, white balance and natural colour are corrected and tilted lines straightened. Every edit passes an automated quality check.",
   },
   {
-    title: "Review and download",
-    body: "We look over and approve every photo by hand, then send you a zip with the enhanced photos and before/after previews.",
+    title: "Review, approve, upload",
+    body: "We check each photo by hand, then send a zip with the enhanced photos and before/after previews, ready for Airbnb or Vrbo.",
   },
 ];
 
@@ -67,10 +84,17 @@ export const EXAMPLES_LABEL =
   "Sample images for illustration: the darker “before” versions were made from the “after” photos, not produced by our pipeline.";
 
 export const FAITHFULNESS = {
+  heading: "Better light. Same place.",
   promise: "We never add, remove or reshape anything that would misrepresent your property.",
   changes: ["Light", "Exposure", "White balance", "Natural colour", "Straightening of verticals and horizon"],
-  detail:
-    "Furniture, fixtures, walls, windows and views stay exactly where they are, and real colours keep their hue. Guests see the place they will actually stay in.",
+  weChange: "light, exposure, white balance, natural colour, straightening.",
+  weNeverChange: "furniture, fixtures, walls, windows, views.",
+};
+
+export const PROOF = {
+  heading: "What Airbnb’s own data says about better photos",
+  intro:
+    "These figures describe Airbnb’s professional photography programme, not our service. They show why photo quality matters.",
 };
 
 export interface LandingStat {
@@ -123,25 +147,34 @@ export const FAQ: LandingFaq[] = [
   {
     question: "What exactly do you change in my photos?",
     answer:
-      "Light, exposure, white balance and natural colour, plus straightening of tilted verticals and horizons. Photos that already look great are sent back as they are.",
+      "Only light, exposure, white balance, natural colour and tilted lines. Photos that already look great come back as they are.",
   },
   {
     question: "Could the edits misrepresent my property?",
     answer:
-      "No. We never add, remove, move or reshape furniture, fixtures, walls, windows or views, and colours keep their real hue. An edit that changes the room is not sent to you.",
+      "No. Furniture, fixtures, walls, windows and views are never added, removed, moved or reshaped, and colours keep their real hue.",
   },
   {
     question: "Who checks the results?",
-    answer:
-      "Every edit goes through an automated quality check, and we review and approve each photo by hand before it is sent to you.",
+    answer: "We do, by hand. Every photo is reviewed and approved before it is sent to you, after an automated quality check.",
   },
   {
     question: "Which files can I send?",
-    answer: "JPG, PNG or WebP photos, up to 25 MB each. The photos you already use on your listing are perfect.",
+    answer: "JPG, PNG or WebP, up to 25 MB each. The photos already on your listing are perfect.",
   },
   {
     question: "What do I get back?",
-    answer:
-      "A zip file with your enhanced photos, ready to upload to Airbnb or Vrbo, plus a before/after preview of each enhanced photo.",
+    answer: "A zip with your enhanced photos, ready for Airbnb or Vrbo, plus a before/after preview of each one.",
   },
 ];
+
+export const OFFER = {
+  heading: `One flat price: ${PRICE} per listing`,
+  body: `Up to ${PHOTOS_PER_LISTING} photos.`,
+};
+
+export const FINAL_CTA = {
+  heading: "Ready for photos that do your place justice?",
+  body: "Tell us about your listing. Submitting opens an email to us in your own mail app; nothing is stored on this page.",
+  button: "Send me my photos",
+};

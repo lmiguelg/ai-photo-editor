@@ -85,7 +85,8 @@ describe("landing page markup (QA)", () => {
 
   it("shows no other price, tier or overage (req 9)", () => {
     const dollars = text.match(/\$\s?\d[\d,.]*/g) ?? [];
-    expect(dollars).toEqual(["$45"]);
+    expect(dollars.length).toBeGreaterThan(0);
+    expect([...new Set(dollars)]).toEqual(["$45"]);
     for (const needle of ["$79", "$149", "$299", "1.50", "overage", "discount", "Tier", "tier"]) {
       expect(text, needle).not.toContain(needle);
     }
