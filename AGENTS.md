@@ -61,9 +61,11 @@ npm run build
 ## Layout
 
 - `src/app/`: routes and API route handlers.
-  - `layout.tsx`: header plus `ProviderModeBanner` above `<main>`.
+  - `layout.tsx`: root layout, only `<html lang="en">`, `<body>`, `globals.css` and the default `metadata`. No owner chrome, so every page outside `(owner)` (the landing page) has none.
+  - `(owner)/layout.tsx`: route group layout for the owner UI (route groups do not change URLs): header plus `ProviderModeBanner` above `<main>`. The two owner pages below live in `src/app/(owner)/` (their paths are relative to it).
   - `/` (`page.tsx`): create-listing form and the listings list (photo count, "N to review", AI cost). Rendered per request (`dynamic = "force-dynamic"`).
   - `/listings/[listingId]` (`listings/[listingId]/page.tsx`): loads the listing with `getListing` (404 via `notFound()`) and renders the client `ListingWorkspace`. Rendered per request.
+  - `/landing` (`src/app/landing/page.tsx`, outside the group): public marketing page, a statically rendered server component with its own minimal header (brand text, CTA to `#contact`), hero, before/after sample sliders, three steps, the price from `config.pricing.listingPriceUsd` per listing up to `PHOTOS_PER_LISTING` photos, the faithfulness promise, sourced stats, a `<details>` FAQ and the `#contact` form; plus `metadata` with Open Graph tags. It imports no store, providers, `process.env` or `ProviderModeBanner`, and never links to the owner UI.
   - `src/app/api/listings/` (JSON in and out, errors are `{"error": "<fixed message>"}`; invalid ids give 404):
     - `GET /api/listings`: all listings with their photos.
     - `POST /api/listings`: create a listing from `{ name, clientName? }` (201).
@@ -104,8 +106,11 @@ npm run build
   - `src/lib/review.ts`: client-safe pure helpers for the UI (no `node:*`, sharp, store or providers): status chips and room-type labels, `sortForReview`, `isRunAllEligible` (only `uploaded`/`failed`, never approved), `selectionState(photos, selectedIds)` (`{ eligibleIds, selectedIds, all, some }`, selection kept to eligible photos) and `runSelectedQueue(photos, selectedIds, runningIds)`, `runQueue` with `RUN_ALL_CONCURRENCY = 2`, run-outcome handling (409 is quiet), `costSummary`/`formatUsd`, client upload checks, `reviewKeyAction` (j/k/a/r) and `exportSelection`/`canExport` (the client export selection rule below).
   - `src/lib/export.ts`: `buildExportZip(listing, maxBytes = MAX_EXPORT_BYTES)` builds the client zip in memory with `fflate`: `photos/<NN>-<room>-<k>.<ext>` (enhanced images re-encoded with `sharp` to strip editor metadata, skipped originals byte for byte) and `previews/<NN>-<room>-<k>-before-after.jpg` (1608×600 side-by-side). Entry names come only from position and room type and are checked against `^(photos|previews)/[a-z0-9-]+\.(jpg|png|webp)$`; source files come only from the photo records via `getPhotoFilePath`. Source bytes are summed with `fs.stat` before reading (300 MB cap, 413).
   - `src/lib/export-summary.ts`: pure (no `node:*`, sharp or store) `escapeHtml` and `buildExportSummary(listing)`, the email text as `{ html, text }`. The HTML is one styled `<div>` with only `<p>`, `<ul>`, `<li>`; every value is escaped.
+  - `src/lib/landing-content.ts`: pure (no imports) copy and data for `/landing`: `BRAND_NAME` and `CONTACT_EMAIL` (placeholders the owner sets before publishing), hero, `STEPS`, `EXAMPLES` (image pairs in `public/examples/`), `FAITHFULNESS`, `STATS` (`{ figure, claim, quote, sourceName, url, year }`, figure and quote copied exactly from the source), `FAQ` and `PHOTOS_PER_LISTING = 25`.
+  - `src/lib/landing-contact.ts`: imports only `zod`: `contactSchema` (name, email, optional `http(s)` listing URL, optional message) and `buildContactMailto(input, to)`, a `mailto:` with every value `encodeURIComponent`-encoded.
   - `src/lib/api-schemas.ts`: request-only Zod schemas (route params, upload fields, decision body, image query).
-- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, photo selection with "Select all" and "Run selected (N)", run all and run selected through one batch runner with Stop, keyboard review, reset), `export-panel.tsx` (export counts, "Download zip", "Email summary" with copy buttons; the summary HTML only goes to the clipboard, never into the page), `photo-card.tsx` (with a `Select <name>` checkbox, enabled only for run-all-eligible photos not running), `before-after-slider.tsx`, `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
+- `src/components/`: UI components. `provider-mode-banner.tsx` and `home-view.tsx` are server components; the rest are client components (`"use client"`) that import only `react`, `next/link`, `next/navigation`, `next/image`, `@/pipeline/schemas`, `@/pipeline/config`, `@/lib/review`, `@/lib/landing-contact` and each other, and talk to the API routes with `fetch`: `listing-workspace.tsx` (cost header, upload, photo selection with "Select all" and "Run selected (N)", run all and run selected through one batch runner with Stop, keyboard review, reset), `export-panel.tsx` (export counts, "Download zip", "Email summary" with copy buttons; the summary HTML only goes to the clipboard, never into the page), `photo-card.tsx` (with a `Select <name>` checkbox, enabled only for run-all-eligible photos not running), `before-after-slider.tsx` (optional `width`/`height`, the intrinsic image size: when given both layers render with `next/image`, as on `/landing`; without them plain `<img>` for the owner API image route), `landing-contact-form.tsx` (the `/landing` contact form: Zod validation with per-field errors, then `window.location.href` to the `mailto:`; no `fetch`, API route, server action or storage), `upload-panel.tsx`, `create-listing-form.tsx`, `status-chip.tsx`. Untrusted text is rendered only as React text; animations are `motion-safe:` only. `test-router.tsx` is a test-only router context for markup tests.
+- `public/examples/`: before/after sample image pairs for `/landing` (JPEG, long edge at most 1600 px, at most 500 KB each), labelled on the page as samples.
 - `scripts/`: thin CLIs run with `tsx` (`diagnose.ts`, `eval.ts`; see Scripts).
 - `data/`: runtime listings, photos, results, logs. Never commit. On-disk layout:
   ```
@@ -117,6 +122,10 @@ npm run build
   data/feedback-report.md                                 latest `npm run diagnose` report (overwritten)
   ```
   One JSON file per photo, so photos of one listing can be updated concurrently.
+
+## Landing page
+
+`/landing` is public: it must hold no owner data (costs, margins, QA scores, mock-mode banner, owner links). Every statistic on it needs a source URL and year in `src/lib/landing-content.ts`, with the figure and quote copied exactly from the source; drop any claim that cannot be sourced.
 
 ## Client export
 
