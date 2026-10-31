@@ -6,7 +6,14 @@ import { config } from "@/pipeline/config";
 
 // Placeholders: the owner sets the real business name and address before publishing.
 export const BRAND_NAME = "AI Photo Editor";
+// The contact address. This is the only line to change: every email link on /landing is built from it.
 export const CONTACT_EMAIL = "hello@example.com";
+
+export const CONTACT_SUBJECT = "Photo enhancement for my listing";
+/** Plain `mailto:` link to CONTACT_EMAIL, shown as the visible address. */
+export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}`;
+/** `mailto:` link with the URI-encoded subject, used by the final CTA button. */
+export const CONTACT_MAILTO_WITH_SUBJECT = `${CONTACT_MAILTO}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`;
 
 // pricing-model.md section 1: "$45 per listing (flat, up to 25 photos)".
 export const PHOTOS_PER_LISTING = 25;
@@ -175,6 +182,7 @@ export const OFFER = {
 
 export const FINAL_CTA = {
   heading: "Ready for photos that do your place justice?",
-  body: "Tell us about your listing. Submitting opens an email to us in your own mail app; nothing is stored on this page.",
+  body: "Email us the photos already on your listing, as JPG, PNG or WebP.",
+  emailLead: "Email your photos to",
   button: "Send me my photos",
 };

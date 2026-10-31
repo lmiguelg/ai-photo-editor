@@ -1,8 +1,12 @@
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { STATS, STEPS } from "@/lib/landing-content";
+import { CONTACT_EMAIL, CONTACT_MAILTO_WITH_SUBJECT, CONTACT_SUBJECT, FINAL_CTA, STATS, STEPS } from "@/lib/landing-content";
 import LandingPage, { metadata } from "./page";
 
+const SRC = path.resolve(__dirname, "..", "..");
 const html = renderToStaticMarkup(<LandingPage />);
 
 describe("landing page markup", () => {
@@ -11,15 +15,28 @@ describe("landing page markup", () => {
     expect(html).toMatch(/<a [^>]*href="#contact"/);
   });
 
-  it("ends with a contact section holding a form with labelled inputs", () => {
+  it("has no form and no form fields", () => {
+    expect(html).not.toMatch(/<(form|input(?![^>]*type="range")|textarea|select|button)[\s>]/);
+  });
+
+  it("ends with a contact section showing CONTACT_EMAIL as a mailto: link and a mailto: button with an encoded subject", () => {
     const start = html.indexOf('id="contact"');
     expect(start).toBeGreaterThan(-1);
     const contact = html.slice(start);
-    expect(contact).toContain("<form");
-    for (const field of ["name", "email", "listingUrl", "message"]) {
-      expect(contact).toContain(`<label for="contact-${field}"`);
-      expect(contact).toMatch(new RegExp(`<(input|textarea)[^>]*id="contact-${field}"`));
-    }
+    expect(contact).toContain(FINAL_CTA.emailLead);
+    expect(contact).toMatch(new RegExp(`<a href="mailto:${CONTACT_EMAIL}"[^>]*>${CONTACT_EMAIL}</a>`));
+
+    const button = contact.match(new RegExp(`<a href="([^"]*)"[^>]*>${FINAL_CTA.button}</a>`));
+    expect(button).not.toBeNull();
+    const href = button![1].replace(/&amp;/g, "&");
+    expect(href).toBe(CONTACT_MAILTO_WITH_SUBJECT);
+    const url = new URL(href);
+    expect(url.protocol).toBe("mailto:");
+    expect(url.pathname).toBe(CONTACT_EMAIL);
+    expect([...url.searchParams.keys()]).toEqual(["subject"]);
+    expect(url.searchParams.get("subject")).toBe(CONTACT_SUBJECT);
+    expect(url.search).toBe(`?subject=${encodeURIComponent(CONTACT_SUBJECT)}`);
+    expect(url.search).not.toContain(" ");
   });
 
   it("shows at least two sliders with labelled range inputs, served by next/image, and a sample label", () => {
@@ -66,6 +83,23 @@ describe("landing page markup", () => {
     expect(image.width).toBeGreaterThan(0);
     expect(image.height).toBeGreaterThan(0);
     expect(image.alt).toBeTruthy();
+  });
+});
+
+describe("landing code sends and stores nothing", () => {
+  it("has no fetch, storage, cookies or server action, and no contact API route", async () => {
+    const files = [
+      "app/landing/page.tsx",
+      "lib/landing-content.ts",
+      "components/landing-header-cta.tsx",
+      "components/landing-stat-figure.tsx",
+      "components/before-after-slider.tsx",
+    ];
+    for (const file of files) {
+      const source = await readFile(path.join(SRC, file), "utf8");
+      expect(source, file).not.toMatch(/\bfetch\b|localStorage|sessionStorage|indexedDB|cookie|use server/i);
+    }
+    expect(existsSync(path.join(SRC, "app", "api", "contact"))).toBe(false);
   });
 });
 

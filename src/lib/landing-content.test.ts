@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { CONTACT_EMAIL, EXAMPLES, FAQ, PHOTOS_PER_LISTING, STATS, STEPS } from "./landing-content";
+import {
+  CONTACT_EMAIL,
+  CONTACT_MAILTO,
+  CONTACT_MAILTO_WITH_SUBJECT,
+  CONTACT_SUBJECT,
+  EXAMPLES,
+  FAQ,
+  PHOTOS_PER_LISTING,
+  STATS,
+  STEPS,
+} from "./landing-content";
 
 describe("landing content", () => {
   it("every stat has a figure, claim, quote and source name", () => {
@@ -44,5 +54,16 @@ describe("landing content", () => {
     }
     expect(PHOTOS_PER_LISTING).toBe(25);
     expect(CONTACT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+$/);
+  });
+
+  it("builds both contact links from CONTACT_EMAIL, the button one with only an encoded subject", () => {
+    expect(CONTACT_MAILTO).toBe(`mailto:${CONTACT_EMAIL}`);
+    const url = new URL(CONTACT_MAILTO_WITH_SUBJECT);
+    expect(url.protocol).toBe("mailto:");
+    expect(url.pathname).toBe(CONTACT_EMAIL);
+    expect([...url.searchParams.keys()]).toEqual(["subject"]);
+    expect(url.searchParams.get("subject")).toBe(CONTACT_SUBJECT);
+    expect(CONTACT_MAILTO_WITH_SUBJECT).toBe(`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`);
+    expect(CONTACT_MAILTO_WITH_SUBJECT).not.toMatch(/\s/);
   });
 });

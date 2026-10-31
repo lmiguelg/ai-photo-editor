@@ -4,7 +4,7 @@ import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { EXAMPLES, FAITHFULNESS, FAQ, STATS } from "@/lib/landing-content";
+import { CONTACT_EMAIL, EXAMPLES, FAITHFULNESS, FAQ, STATS } from "@/lib/landing-content";
 import { config } from "@/pipeline/config";
 import LandingPage from "./page";
 
@@ -56,7 +56,8 @@ describe("landing page markup (QA)", () => {
     expect(header).toMatch(/<a [^>]*href="#contact"/);
     const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
     for (const href of hrefs) {
-      expect(href === "#contact" || href.startsWith("https://"), href).toBe(true);
+      const mailto = href === `mailto:${CONTACT_EMAIL}` || href.startsWith(`mailto:${CONTACT_EMAIL}?`);
+      expect(href === "#contact" || href.startsWith("https://") || mailto, href).toBe(true);
     }
   });
 
@@ -69,13 +70,10 @@ describe("landing page markup (QA)", () => {
     }
   });
 
-  it("the contact section is the last section on the page and the form posts nowhere", () => {
+  it("the contact section is the last section on the page and holds no form", () => {
     const sections = [...html.matchAll(/<section[^>]*>/g)].map((m) => m[0]);
     expect(sections.at(-1)).toContain('id="contact"');
-    const form = html.match(/<form[^>]*>/)?.[0] ?? "";
-    expect(form).not.toMatch(/\saction=/);
-    expect(form).not.toMatch(/\smethod=/);
-    expect(form.toLowerCase()).toContain("novalidate");
+    expect(html).not.toMatch(/<form[\s>]/);
   });
 
   it("renders the price from config as whole dollars per listing (req 9)", () => {

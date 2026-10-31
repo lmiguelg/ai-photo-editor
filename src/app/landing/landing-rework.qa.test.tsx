@@ -107,11 +107,11 @@ describe("rework 1 copy (QA)", () => {
     }
   });
 
-  it("the final CTA heading and submit button sit in the #contact section", () => {
+  it("the final CTA heading and the mailto: button sit in the #contact section", () => {
     const contact = decode(html.slice(html.indexOf('id="contact"')));
     expect(contact).toContain(`id="contact-heading"`);
     expect(contact).toContain(FINAL_CTA.heading);
-    expect(contact).toMatch(new RegExp(`<button type="submit"[^>]*>${FINAL_CTA.button}</button>`));
+    expect(contact).toMatch(new RegExp(`<a href="mailto:[^"]*"[^>]*>${FINAL_CTA.button}</a>`));
     expect(FINAL_CTA.button).toBe("Send me my photos");
   });
 

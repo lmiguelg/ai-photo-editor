@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { BeforeAfterSlider } from "@/components/before-after-slider";
-import { LandingContactForm } from "@/components/landing-contact-form";
 import { LandingHeaderCta } from "@/components/landing-header-cta";
 import { LandingStatFigure } from "@/components/landing-stat-figure";
 import {
   BRAND_NAME,
   CONTACT_EMAIL,
+  CONTACT_MAILTO,
+  CONTACT_MAILTO_WITH_SUBJECT,
   EXAMPLES,
   EXAMPLES_LABEL,
   FAITHFULNESS,
@@ -281,8 +282,19 @@ export default function LandingPage() {
               </h2>
               <p className="mt-5 max-w-xl text-lg text-slate-300">{FINAL_CTA.body}</p>
             </div>
-            <div className="rounded-2xl bg-white p-6 text-neutral-900 shadow-2xl shadow-black/40 sm:p-8">
-              <LandingContactForm contactEmail={CONTACT_EMAIL} submitLabel={FINAL_CTA.button} />
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/40 sm:p-8">
+              <p className="text-lg text-slate-300">
+                {FINAL_CTA.emailLead}{" "}
+                <a
+                  href={CONTACT_MAILTO}
+                  className={`break-words rounded font-semibold text-amber-200 underline underline-offset-4 hover:text-white ${FOCUS_DARK}`}
+                >
+                  {CONTACT_EMAIL}
+                </a>
+              </p>
+              <a href={CONTACT_MAILTO_WITH_SUBJECT} className={`${CTA} mt-6`}>
+                {FINAL_CTA.button}
+              </a>
             </div>
           </div>
         </section>
