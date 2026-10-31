@@ -182,3 +182,31 @@ describe("public/examples images (req 6, AC 10)", () => {
     }
   });
 });
+
+describe("example labels read as plain phrases (round 1 ux finding)", () => {
+  it("every example name is a plain noun phrase with no leading article or 'of'", () => {
+    for (const example of EXAMPLES) {
+      expect(example.name.trim(), example.name).toBe(example.name);
+      expect(example.name, example.name).not.toMatch(/^(of|a|an|the)\b/i);
+    }
+  });
+
+  it("every slider range label and alt text is built from its example name", () => {
+    for (const example of EXAMPLES) {
+      const name = example.name.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+      expect(html).toContain(`aria-label="Before/after comparison for ${name}"`);
+      expect(html).toMatch(new RegExp(`alt="Original photo ${name}"`));
+      expect(html).toMatch(new RegExp(`alt="Edited photo ${name}"`));
+    }
+    expect(html).not.toMatch(/comparison for (of|a|an|the) /i);
+    expect(html).not.toMatch(/alt="[^"]*\b(of of|for of|photo of an?) /);
+  });
+
+  it("the Open Graph image alt reads as a phrase without a dangling 'of'", async () => {
+    const { metadata } = await import("./page");
+    const images = metadata.openGraph?.images;
+    const first = (Array.isArray(images) ? images[0] : images) as { alt?: string };
+    expect(first.alt).toMatch(/^Enhanced listing photo: \S/);
+    expect(first.alt).not.toMatch(/: (of|a|an|the) /i);
+  });
+});
