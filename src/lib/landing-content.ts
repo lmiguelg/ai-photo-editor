@@ -1,0 +1,147 @@
+// All copy and data for the public landing page (/landing). Pure: no imports. The page
+// may only promise what the pipeline does (FAITHFULNESS_RULE in src/pipeline/prompts.ts)
+// and must never show owner data (costs, margins, scores). Every stat needs a source URL
+// and year; the research behind them is in factory/jobs/010-landing-page/research.md.
+
+// Placeholders: the owner sets the real business name and address before publishing.
+export const BRAND_NAME = "AI Photo Editor";
+export const CONTACT_EMAIL = "hello@example.com";
+
+// pricing-model.md section 1: "$45 per listing (flat, up to 25 photos)".
+export const PHOTOS_PER_LISTING = 25;
+
+export const HERO = {
+  headline: "Better-looking listing photos for Airbnb and Vrbo hosts, true to your place",
+  subline:
+    "We fix the light, colour and crooked lines in the photos you already have, and never add, remove or reshape a thing.",
+  cta: "Get your photos enhanced",
+};
+
+export interface LandingStep {
+  title: string;
+  body: string;
+}
+
+export const STEPS: LandingStep[] = [
+  {
+    title: "Send your photos",
+    body: "Email us the listing photos you already have, as JPG, PNG or WebP files.",
+  },
+  {
+    title: "We enhance them",
+    body: "Our AI corrects light, exposure, white balance and colour, and straightens tilted lines. Every edit goes through an automated quality check.",
+  },
+  {
+    title: "Review and download",
+    body: "We look over and approve every photo by hand, then send you a zip with the enhanced photos and before/after previews.",
+  },
+];
+
+export interface LandingExample {
+  /** Used in the slider alt text ("Original photo <name>") and range label. */
+  name: string;
+  beforeSrc: string;
+  afterSrc: string;
+  width: number;
+  height: number;
+}
+
+export const EXAMPLES: LandingExample[] = [
+  {
+    name: "of a living room with a white corner sofa",
+    beforeSrc: "/examples/living-room-before.jpg",
+    afterSrc: "/examples/living-room-after.jpg",
+    width: 1600,
+    height: 800,
+  },
+  {
+    name: "of an apartment dining area with an armchair by the window",
+    beforeSrc: "/examples/apartment-before.jpg",
+    afterSrc: "/examples/apartment-after.jpg",
+    width: 1600,
+    height: 1059,
+  },
+];
+
+export const EXAMPLES_LABEL =
+  "Sample images for illustration: the darker “before” versions were made from the “after” photos, not produced by our pipeline.";
+
+export const FAITHFULNESS = {
+  promise: "We never add, remove or reshape anything that would misrepresent your property.",
+  changes: ["Light", "Exposure", "White balance", "Natural colour", "Straightening of verticals and horizon"],
+  detail:
+    "Furniture, fixtures, walls, windows and views stay exactly where they are, and real colours keep their hue. Guests see the place they will actually stay in.",
+};
+
+export interface LandingStat {
+  /** The number exactly as the source writes it. */
+  figure: string;
+  claim: string;
+  /** The exact source text containing `figure`. */
+  quote: string;
+  sourceName: string;
+  url: string;
+  /** Publication year of the source. */
+  year: number;
+}
+
+export const STATS: LandingStat[] = [
+  {
+    figure: "19%",
+    claim: "more bookings, on average, for listings with Airbnb pro photography.",
+    quote: "19% more bookings",
+    sourceName: "Airbnb",
+    url: "https://www.airbnb.com/e/pro-photography",
+    year: 2026,
+  },
+  {
+    figure: "21%",
+    claim: "increase in host earnings: hosts with Airbnb pro photography may earn more than other hosts in their area.",
+    quote: "21% increase in host earnings",
+    sourceName: "Airbnb",
+    url: "https://www.airbnb.com/e/pro-photography",
+    year: 2026,
+  },
+  {
+    figure: "8.98%",
+    claim:
+      "higher occupancy for Airbnb properties with verified photos taken by Airbnb’s photographers than for properties with photos taken by the host, in a peer-reviewed study.",
+    quote:
+      "Using deep learning and difference-in-difference analyses on an Airbnb panel data set spanning 7,423 properties over 16 months, we find that properties with verified images had 8.98% higher occupancy than properties without verified images (images taken by the host).",
+    sourceName: "Zhang et al., Management Science",
+    url: "https://doi.org/10.1287/mnsc.2021.4175",
+    year: 2022,
+  },
+];
+
+export interface LandingFaq {
+  question: string;
+  answer: string;
+}
+
+export const FAQ: LandingFaq[] = [
+  {
+    question: "What exactly do you change in my photos?",
+    answer:
+      "Light, exposure, white balance and natural colour, plus straightening of tilted verticals and horizons. Photos that already look great are sent back as they are.",
+  },
+  {
+    question: "Could the edits misrepresent my property?",
+    answer:
+      "No. We never add, remove, move or reshape furniture, fixtures, walls, windows or views, and colours keep their real hue. An edit that changes the room is not sent to you.",
+  },
+  {
+    question: "Who checks the results?",
+    answer:
+      "Every edit goes through an automated quality check, and we review and approve each photo by hand before it is sent to you.",
+  },
+  {
+    question: "Which files can I send?",
+    answer: "JPG, PNG or WebP photos, up to 25 MB each. The photos you already use on your listing are perfect.",
+  },
+  {
+    question: "What do I get back?",
+    answer:
+      "A zip file with your enhanced photos, ready to upload to Airbnb or Vrbo, plus a before/after preview of each enhanced photo.",
+  },
+];
